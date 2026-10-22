@@ -41,35 +41,12 @@ Para manter a conexão Socket.IO viva sem sofrer encerramento pelo Doze Mode do 
 2. O serviço segura um `PARTIAL_WAKE_LOCK` e um `WifiLock` (`WIFI_MODE_FULL_HIGH_PERF`).
 3. Ao receber `alert:locate`:
    - Emite `alert:ack` imediato com `commandId`.
-   - Dispara uma notificação de alta importância (`IMPORTANCE_HIGH`, `CATEGORY_ALARM`) com **`setFullScreenIntent`** direcionado para `LocateAlertActivity`.
-   - Dispara `SoundAndVibrationHelper` para tocar alarme em `STREAM_ALARM` e vibrar.
-
-```kotlin
-val alertIntent = Intent(context, LocateAlertActivity::class.java).apply {
-    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    putExtra("commandId", commandId)
-    putExtra("durationMs", durationMs)
-}
-
-val pendingIntent = PendingIntent.getActivity(
-    context,
-    commandId.hashCode(),
-    alertIntent,
-    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-)
-
-val notification = NotificationCompat.Builder(context, CHANNEL_ALERT_ID)
-    .setSmallIcon(android.R.drawable.ic_dialog_alert)
-    .setContentTitle("Localizando Celular!")
-    .setContentText("Alerta visual e sonoro em andamento...")
-    .setPriority(NotificationCompat.PRIORITY_MAX)
-    .setCategory(NotificationCompat.CATEGORY_ALARM)
-    .setFullScreenIntent(pendingIntent, true)
-    .setAutoCancel(true)
-    .build()
-
-notificationManager.notify(NOTIFICATION_ALERT_ID, notification)
-```
+   - Aciona imediatamente o `LocateAlertController`, que executa de forma autônoma (sem esperar Activity):
+     - Som de alarme em `STREAM_ALARM` com volume máximo temporário.
+     - Vibração com atributos de alarme (`VibrationAttributes.USAGE_ALARM`).
+     - Acendimento do display via `PowerManager.ACQUIRE_CAUSES_WAKEUP`.
+     - Desenho de tela 100% vermelha (#FF0000) por sobreposição (`TYPE_APPLICATION_OVERLAY`).
+   - Dispara notificação de alta importância com `setFullScreenIntent` para cobrir a tela de bloqueio via `LocateAlertActivity`.
 
 ## 3. Despertar de Tela Apagada e Bloqueada (`LocateAlertActivity`)
 

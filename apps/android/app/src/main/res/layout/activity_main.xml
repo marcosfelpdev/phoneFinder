@@ -334,6 +334,26 @@
                         android:textColor="@color/text_secondary"
                         android:checked="true" />
 
+                    <TextView
+                        android:id="@+id/txtAlertPermissionStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:background="@color/bg_primary"
+                        android:padding="12dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="✓ Sobrepor a outros apps\n✗ Notificações em tela cheia" />
+
+                    <Button
+                        android:id="@+id/btnAlertPermissions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/alert_permissions_btn"
+                        android:textSize="12sp"
+                        app:backgroundTint="@color/accent_rose" />
+
                     <Button
                         android:id="@+id/btnBatteryOptimization"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"

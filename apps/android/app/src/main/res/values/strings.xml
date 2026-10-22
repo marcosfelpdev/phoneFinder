@@ -27,4 +27,5 @@
     <string name="opt_vibrate">Vibrar Aparelho</string>
     <string name="background_service_toggle">Executar em Segundo Plano</string>
     <string name="battery_optimization_btn">Configurar Bateria Sem Restrições</string>
+    <string name="alert_permissions_btn">Liberar Permissões de Alerta</string>
 </resources>

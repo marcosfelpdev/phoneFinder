@@ -23,6 +23,8 @@ import com.phonefinder.databinding.ActivityMainBinding
 import com.phonefinder.service.PhoneFinderForegroundService
 import com.phonefinder.ui.FullscreenHelper
 import com.phonefinder.ui.LocateAlertActivity
+import com.phonefinder.util.AlertPermissions
+import com.phonefinder.util.LocateAlertController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -107,6 +109,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnBatteryOptimization.setOnClickListener {
             requestIgnoreBatteryOptimization()
+        }
+
+        binding.btnAlertPermissions.setOnClickListener {
+            requestNextAlertPermission()
         }
 
         binding.btnConnectServer.setOnClickListener {
@@ -282,15 +288,113 @@ class MainActivity : AppCompatActivity() {
 
         localSocketManager?.sendAlertAck(commandId)
 
-        // Se tela vermelha estiver ativa, dispara Activity de tela cheia ou overlay
-        runOnUiThread {
-            val intent = Intent(this, LocateAlertActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(LocateAlertActivity.EXTRA_DURATION_MS, durationMs)
-                putExtra(LocateAlertActivity.EXTRA_ENABLE_SOUND, preferences.isSoundAlertEnabled)
-                putExtra(LocateAlertActivity.EXTRA_ENABLE_VIBRATE, preferences.isVibrationAlertEnabled)
+        // Som + vibração + tela acesa (independente da Activity vermelha)
+        LocateAlertController.start(
+            context = this,
+            durationMs = durationMs,
+            enableSound = preferences.isSoundAlertEnabled,
+            enableVibrate = preferences.isVibrationAlertEnabled,
+            enableRedOverlay = false
+        )
+
+        // App em primeiro plano: pode abrir a tela vermelha diretamente
+        if (preferences.isScreenRedEnabled) {
+            runOnUiThread {
+                val intent = Intent(this, LocateAlertActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(LocateAlertActivity.EXTRA_DURATION_MS, durationMs)
+                }
+                startActivity(intent)
             }
-            startActivity(intent)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateAlertPermissionStatus()
+    }
+
+    private fun updateAlertPermissionStatus() {
+        val overlayOk = AlertPermissions.canDrawOverlays(this)
+        val fsiOk = AlertPermissions.canUseFullScreenIntent(this)
+
+        val lines = mutableListOf(
+            (if (overlayOk) "✓" else "✗") + " Sobrepor a outros apps (vermelho com a tela ligada)",
+            (if (fsiOk) "✓" else "✗") + " Notificações em tela cheia (vermelho na tela de bloqueio)"
+        )
+        if (AlertPermissions.isXiaomiFamily) {
+            lines += "• Xiaomi/HyperOS: libere também \"Exibir janelas pop-up em 2º plano\" e \"Mostrar na tela de bloqueio\""
+        }
+        binding.txtAlertPermissionStatus.text = lines.joinToString("\n")
+    }
+
+    /**
+     * Abre, em sequência, a tela de configuração da próxima permissão especial pendente.
+     * Essas permissões não podem ser solicitadas via diálogo; o usuário precisa ativá-las
+     * manualmente nas Configurações do sistema.
+     */
+    private fun requestNextAlertPermission() {
+        try {
+            when {
+                !AlertPermissions.canDrawOverlays(this) &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                    Toast.makeText(this, "Ative \"Sobrepor a outros apps\" para o Phone Finder.", Toast.LENGTH_LONG).show()
+                    startActivity(
+                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    )
+                }
+
+                !AlertPermissions.canUseFullScreenIntent(this) &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                    Toast.makeText(this, "Ative \"Notificações em tela cheia\" para o Phone Finder.", Toast.LENGTH_LONG).show()
+                    startActivity(
+                        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
+                    )
+                }
+
+                AlertPermissions.isXiaomiFamily -> openXiaomiPermissionEditor()
+
+                else -> Toast.makeText(this, "Todas as permissões de alerta estão liberadas.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            openAppDetailsSettings()
+        }
+    }
+
+    private fun openXiaomiPermissionEditor() {
+        Toast.makeText(
+            this,
+            "Ative \"Exibir janelas pop-up em 2º plano\" e \"Mostrar na tela de bloqueio\".",
+            Toast.LENGTH_LONG
+        ).show()
+        val candidates = listOf(
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                putExtra("extra_pkgname", packageName)
+            },
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
+                putExtra("extra_pkgname", packageName)
+            }
+        )
+        for (intent in candidates) {
+            try {
+                startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // tenta o próximo
+            }
+        }
+        openAppDetailsSettings()
+    }
+
+    private fun openAppDetailsSettings() {
+        try {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+            )
+        } catch (e: Exception) {
+            Toast.makeText(this, "Abra Configurações › Apps › Phone Finder manualmente.", Toast.LENGTH_LONG).show()
         }
     }
 

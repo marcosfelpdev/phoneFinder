@@ -8,14 +8,19 @@ import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.phonefinder.R
-import com.phonefinder.util.SoundAndVibrationHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Tela 100% vermelha exibida sobre a tela de bloqueio (aberta via Full-Screen Intent).
+ *
+ * Som, vibração e acendimento do display são controlados pelo LocateAlertController,
+ * iniciado diretamente pelo Foreground Service — assim o alerta sonoro não depende
+ * desta Activity conseguir ser aberta pelo sistema.
+ */
 class LocateAlertActivity : AppCompatActivity() {
 
-    private lateinit var soundAndVibrationHelper: SoundAndVibrationHelper
     private var alertJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,14 +34,7 @@ class LocateAlertActivity : AppCompatActivity() {
         // Modo imersivo absoluto (sem status bar ou navigation bar)
         FullscreenHelper.enterImmersiveRedScreen(this)
 
-        soundAndVibrationHelper = SoundAndVibrationHelper(this)
-
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, DEFAULT_DURATION_MS)
-        val enableSound = intent.getBooleanExtra(EXTRA_ENABLE_SOUND, true)
-        val enableVibrate = intent.getBooleanExtra(EXTRA_ENABLE_VIBRATE, true)
-
-        // Iniciar toque de alarme e padrão de vibração
-        soundAndVibrationHelper.start(enableSound = enableSound, enableVibrate = enableVibrate)
 
         // Temporizador de 5 segundos exatos para encerrar o alerta e restaurar o estado original
         alertJob = lifecycleScope.launch {
@@ -68,7 +66,6 @@ class LocateAlertActivity : AppCompatActivity() {
     }
 
     private fun finishAlert() {
-        soundAndVibrationHelper.stop()
         FullscreenHelper.exitImmersiveRedScreen(this)
         finish()
     }
@@ -76,13 +73,10 @@ class LocateAlertActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         alertJob?.cancel()
-        soundAndVibrationHelper.stop()
     }
 
     companion object {
         const val EXTRA_DURATION_MS = "extra_duration_ms"
-        const val EXTRA_ENABLE_SOUND = "extra_enable_sound"
-        const val EXTRA_ENABLE_VIBRATE = "extra_enable_vibrate"
         const val DEFAULT_DURATION_MS = 5000L
     }
 }

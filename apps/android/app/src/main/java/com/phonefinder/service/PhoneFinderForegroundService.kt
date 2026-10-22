@@ -1,6 +1,7 @@
 package com.phonefinder.service
 
 import android.annotation.SuppressLint
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,6 +21,8 @@ import com.phonefinder.R
 import com.phonefinder.data.DevicePreferences
 import com.phonefinder.data.SocketManager
 import com.phonefinder.ui.LocateAlertActivity
+import com.phonefinder.util.AlertPermissions
+import com.phonefinder.util.LocateAlertController
 
 class PhoneFinderForegroundService : Service() {
 
@@ -135,8 +138,14 @@ class PhoneFinderForegroundService : Service() {
     }
 
     /**
-     * Processa o comando de localização: envia ACK, dispara o Full-Screen Intent
-     * e desperta a tela bloqueada/desligada do celular.
+     * Processa o comando de localização.
+     *
+     * O som, a vibração, o acendimento da tela e a camada vermelha são disparados
+     * IMEDIATAMENTE pelo próprio serviço (LocateAlertController). Antes, tudo isso só
+     * acontecia no onCreate() da LocateAlertActivity — e o Android não abre essa
+     * Activity quando o usuário está com a tela ligada (o Full-Screen Intent vira apenas
+     * uma notificação heads-up) nem quando a permissão de tela cheia está negada
+     * (padrão no Android 14+ / HyperOS). Resultado: nada tocava até a notificação ser tocada.
      */
     private fun handleAlertLocate(commandId: String, durationMs: Long) {
         if (processedCommands.contains(commandId)) {
@@ -148,43 +157,81 @@ class PhoneFinderForegroundService : Service() {
         // Enviar ACK imediato ao servidor
         socketManager.sendAlertAck(commandId)
 
-        // Criar Intent para a LocateAlertActivity
+        val screenRedEnabled = preferences.isScreenRedEnabled
+        val canOverlay = AlertPermissions.canDrawOverlays(this)
+
+        // Estado do aparelho ANTES de acendermos a tela
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val wasScreenOff = !powerManager.isInteractive
+        val isLocked = keyguardManager.isKeyguardLocked
+
+        // 1) Som + vibração + tela acesa + camada vermelha (independe de Activity)
+        LocateAlertController.start(
+            context = this,
+            durationMs = durationMs,
+            enableSound = preferences.isSoundAlertEnabled,
+            enableVibrate = preferences.isVibrationAlertEnabled,
+            enableRedOverlay = screenRedEnabled
+        )
+
+        // 2) Activity vermelha: necessária para aparecer SOBRE a tela de bloqueio ou
+        //    quando não há permissão de sobreposição para desenhar a camada vermelha.
+        val needsActivity = screenRedEnabled && (wasScreenOff || isLocked || !canOverlay)
+
         val alertIntent = Intent(this, LocateAlertActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(LocateAlertActivity.EXTRA_DURATION_MS, durationMs)
-            putExtra(LocateAlertActivity.EXTRA_ENABLE_SOUND, preferences.isSoundAlertEnabled)
-            putExtra(LocateAlertActivity.EXTRA_ENABLE_VIBRATE, preferences.isVibrationAlertEnabled)
         }
 
-        val pendingIntent = PendingIntent.getActivity(
+        val fullScreenPendingIntent = PendingIntent.getActivity(
             this,
             commandId.hashCode(),
             alertIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Disparar notificação de alta prioridade com Full-Screen Intent (FSI)
-        // Isso acorda o dispositivo e projeta a tela vermelha mesmo quando bloqueado/desligado
-        val alertNotification = NotificationCompat.Builder(this, CHANNEL_ALERT_ID)
+        val openAppPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Notificação de alarme (canal silencioso: o som é tocado pelo controller)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ALERT_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(getString(R.string.alert_notification_title))
             .setContentText(getString(R.string.alert_notification_desc))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setFullScreenIntent(pendingIntent, true)
+            .setContentIntent(openAppPendingIntent)
+            .setTimeoutAfter(durationMs + 1_000L)
             .setAutoCancel(true)
-            .build()
 
-        notificationManager.notify(NOTIFICATION_ALERT_ID, alertNotification)
+        if (needsActivity) {
+            builder.setFullScreenIntent(fullScreenPendingIntent, true)
+        }
 
-        // Também invocar startActivity diretamente como suporte adicional
-        try {
-            startActivity(alertIntent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao iniciar LocateAlertActivity diretamente", e)
+        notificationManager.notify(NOTIFICATION_ALERT_ID, builder.build())
+
+        // Tentativa direta: só é permitida em 2º plano quando o app possui a permissão
+        // "Sobrepor a outros apps" (isenção oficial de Background Activity Launch).
+        if (needsActivity && canOverlay) {
+            try {
+                startActivity(alertIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao iniciar LocateAlertActivity diretamente", e)
+            }
+        }
+
+        if (!AlertPermissions.canUseFullScreenIntent(this)) {
+            Log.w(TAG, "Permissão de notificação em tela cheia NEGADA — a tela de bloqueio não exibirá o vermelho.")
         }
     }
 
@@ -239,7 +286,9 @@ class PhoneFinderForegroundService : Service() {
                 setShowBadge(false)
             }
 
-            // Canal para o alerta em tela cheia (Alta prioridade / Alarme)
+            // Canal para o alerta em tela cheia (Alta prioridade / Alarme).
+            // Silencioso de propósito: som e vibração são controlados pelo
+            // LocateAlertController (STREAM_ALARM em loop), evitando toque duplicado.
             val alertChannel = NotificationChannel(
                 CHANNEL_ALERT_ID,
                 getString(R.string.channel_alert_name),
@@ -247,8 +296,13 @@ class PhoneFinderForegroundService : Service() {
             ).apply {
                 description = getString(R.string.channel_alert_desc)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-                enableVibration(true)
+                setSound(null, null)
+                enableVibration(false)
+                setBypassDnd(true)
             }
+
+            // Remove o canal antigo (configurações de canal são imutáveis após criadas)
+            notificationManager.deleteNotificationChannel(LEGACY_CHANNEL_ALERT_ID)
 
             notificationManager.createNotificationChannel(serviceChannel)
             notificationManager.createNotificationChannel(alertChannel)
@@ -264,6 +318,7 @@ class PhoneFinderForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        LocateAlertController.stop(this)
         stopForegroundService()
         if (instance === this) {
             instance = null
@@ -275,7 +330,8 @@ class PhoneFinderForegroundService : Service() {
     companion object {
         private const val TAG = "ForegroundService"
         const val CHANNEL_SERVICE_ID = "phone_finder_service_channel"
-        const val CHANNEL_ALERT_ID = "phone_finder_alert_channel"
+        const val CHANNEL_ALERT_ID = "phone_finder_alert_channel_v2"
+        private const val LEGACY_CHANNEL_ALERT_ID = "phone_finder_alert_channel"
         const val NOTIFICATION_SERVICE_ID = 1001
         const val NOTIFICATION_ALERT_ID = 1002
 
