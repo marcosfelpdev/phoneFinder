@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phone Finder</string>
+    <string name="server_url_label">URL do Servidor Local</string>
+    <string name="pairing_code_label">Código de Pareamento (6 dígitos)</string>
+    <string name="connect_button">Conectar e Parear</string>
+    <string name="paired_status">✓ Aparelho Pareado</string>
+    <string name="waiting_commands">Aguardando comandos de localização na rede Wi-Fi.</string>
+    <string name="keep_screen_on_notice">Mantenha a tela ligada nesta bancada de trabalho.</string>
+    <string name="unpair_button">Desvincular este Aparelho</string>
+    <string name="save_server">Salvar Servidor</string>
+</resources>
