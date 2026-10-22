@@ -45,5 +45,11 @@ cd apps/android
 3. Clicar em **Localizar Celular** no card: a tela deve acender em vermelho por 5 s com som de alarme e vibração.
 4. Se a tela não acender mas o som/vibração ocorrerem, revisar os itens 4 e 5 acima.
 
-## 7. Release assinado (opcional)
+## 7. Dispositivo validado
+- **Samsung Galaxy A21s (SM-A217M), Android 12 / One UI**: instalação via `adb install -r` OK, `PhoneFinderForegroundService` com `isForeground=true`, app conecta ao servidor (`Conectado (Wi-Fi)`), celular em `192.168.1.19` alcança o PC em `192.168.1.4:3001`.
+- Android 12 não exige a permissão `POST_NOTIFICATIONS` (somente Android 13+).
+- **Samsung One UI** — para o alerta funcionar com a tela apagada, conferir em *Configurações > Bateria > Limites de uso em segundo plano*: remover o Phone Finder de "Apps em suspensão" / "Apps em suspensão profunda" e colocar em "Apps que nunca ficam em suspensão". Em *Apps > Phone Finder > Bateria*, escolher **Sem restrições**.
+- Diagnóstico por ADB: `adb shell dumpsys activity services com.phonefinder` (confirmar `isForeground=true`) e `adb logcat -d | findstr phonefinder`.
+
+## 8. Release assinado (opcional)
 `Build > Generate Signed Bundle / APK > APK` com um keystore próprio. Nunca versionar o keystore.
