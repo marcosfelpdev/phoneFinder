@@ -5,6 +5,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { ClientToServerEvents, ServerToClientEvents } from 'shared';
 import { systemRouter } from './routes/system.routes';
+import { cardsRouter } from './routes/cards.routes';
+import { presenceService } from './services/presence.service';
 import { getLanInterfaces } from './utils/lan-ip';
 import { logger } from './utils/logger';
 
@@ -19,7 +21,9 @@ const server = http.createServer(app);
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
 app.use('/api', systemRouter);
+app.use('/api/cards', cardsRouter);
 
 export const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -27,10 +31,13 @@ export const io = new Server<ClientToServerEvents, ServerToClientEvents>(server,
   pingInterval: 5000,
 });
 
+presenceService.setIO(io);
+
 io.on('connection', (socket) => {
   logger.info('Socket', `Cliente conectado: ${socket.id} (IP: ${socket.handshake.address})`);
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', async (reason) => {
     logger.info('Socket', `Cliente desconectado: ${socket.id} (Motivo: ${reason})`);
+    await presenceService.handleSocketDisconnect(socket.id);
   });
 });
 
