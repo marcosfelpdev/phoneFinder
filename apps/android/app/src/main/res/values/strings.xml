@@ -9,4 +9,22 @@
     <string name="keep_screen_on_notice">Mantenha a tela ligada nesta bancada de trabalho.</string>
     <string name="unpair_button">Desvincular este Aparelho</string>
     <string name="save_server">Salvar Servidor</string>
+
+    <!-- Notificações e Segundo Plano -->
+    <string name="channel_service_name">Serviço de Segundo Plano</string>
+    <string name="channel_service_desc">Mantém o Phone Finder conectado na rede Wi-Fi</string>
+    <string name="channel_alert_name">Alerta de Localização</string>
+    <string name="channel_alert_desc">Dispara alerta em tela cheia com som e vibração</string>
+    <string name="service_running_title">Phone Finder Ativo</string>
+    <string name="service_running_desc">Monitorando comandos de localização via Wi-Fi</string>
+    <string name="alert_notification_title">🚨 Celular Localizado!</string>
+    <string name="alert_notification_desc">Comando recebido do computador via rede Wi-Fi</string>
+
+    <!-- Opções de Alerta -->
+    <string name="alert_options_title">Opções de Identificação</string>
+    <string name="opt_screen_red">Acender Tela em Vermelho (5s)</string>
+    <string name="opt_sound">Tocar Alarme Sonoro</string>
+    <string name="opt_vibrate">Vibrar Aparelho</string>
+    <string name="background_service_toggle">Executar em Segundo Plano</string>
+    <string name="battery_optimization_btn">Configurar Bateria Sem Restrições</string>
 </resources>

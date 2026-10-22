@@ -263,6 +263,89 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Card: Segundo Plano e Modos de Alerta -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/bg_surface"
+                app:strokeColor="@color/border_subtle"
+                app:cardCornerRadius="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/alert_options_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchForegroundService"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/background_service_toggle"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:checked="true" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Mantém o socket e Wi-Fi ativos em 2º plano e acende a tela mesmo bloqueada."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="12dp"
+                        android:background="@color/border_subtle" />
+
+                    <CheckBox
+                        android:id="@+id/chkScreenRed"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/opt_screen_red"
+                        android:textColor="@color/text_secondary"
+                        android:checked="true" />
+
+                    <CheckBox
+                        android:id="@+id/chkSoundAlert"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/opt_sound"
+                        android:textColor="@color/text_secondary"
+                        android:checked="true" />
+
+                    <CheckBox
+                        android:id="@+id/chkVibrationAlert"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/opt_vibrate"
+                        android:textColor="@color/text_secondary"
+                        android:checked="true" />
+
+                    <Button
+                        android:id="@+id/btnBatteryOptimization"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="@string/battery_optimization_btn"
+                        android:textSize="12sp"
+                        app:strokeColor="@color/border_subtle" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
         </LinearLayout>
     </ScrollView>
 
