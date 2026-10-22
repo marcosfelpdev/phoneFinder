@@ -1,26 +1,31 @@
 # Runbook — Gerar e Instalar o APK do Phone Finder
 
-> Estado atual: o módulo `apps/android` ainda **não foi compilado** (o ambiente de desenvolvimento não possui Android SDK/JDK/Gradle e o projeto não contém `gradlew`). Erros de compilação no primeiro build devem ser reportados e corrigidos, e este documento atualizado.
+> Estado atual: `assembleDebug` foi validado com sucesso (BUILD SUCCESSFUL, APK de ~6 MB) com Gradle Wrapper 8.9 + **JDK 17** + Android SDK Platform 35. O wrapper (`gradlew`, `gradle/wrapper`) está versionado em `apps/android`.
+
+> [!IMPORTANT]
+> O Gradle 8.9 **não roda em JDK 25** (erro opaco `What went wrong: 25.0.3`). O Android Studio recente (262+) embarca o JBR 25. Use sempre um **JDK 17** para o Gradle (ver seção 2, passo 2).
 
 ## 1. Pré-requisitos (Windows)
-- **Android Studio** (Ladybug 2024.2+ ou mais recente). Já inclui o JDK 17 (`jbr`) exigido pelo projeto.
+- **Android Studio** (Ladybug 2024.2+ ou mais recente).
+- **JDK 17** (Temurin/Eclipse Adoptium). Studios recentes trazem JBR 25, incompatível com Gradle 8.9.
 - **Android SDK Platform 35** (SDK Manager → SDK Platforms) e **Build-Tools** correspondentes.
 - Versões fixadas no projeto: AGP `8.7.3`, Kotlin `2.0.21`, `compileSdk/targetSdk 35`, `minSdk 24`, Java 17. O AGP 8.7.x exige **Gradle 8.9+**.
 
 ## 2. Gerar o APK pelo Android Studio (recomendado)
 1. `File > Open` → selecionar a pasta `apps/android` (não a raiz do monorepo).
-2. Aguardar o *Gradle Sync*. Se não houver `gradle-wrapper`, aceitar a criação/uso da distribuição Gradle sugerida pelo Studio.
+2. Em `File > Settings > Build, Execution, Deployment > Build Tools > Gradle`, definir **Gradle JDK = 17** (se não listado: *Download JDK...* → versão 17). Depois aguardar o *Gradle Sync*.
 3. `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
 4. Clicar em **locate** na notificação. Saída:
    `apps/android/app/build/outputs/apk/debug/app-debug.apk`
 
 ## 3. Gerar via linha de comando (após o wrapper existir)
 ```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:JAVA_HOME = "<caminho do JDK 17>"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 cd apps/android
 .\gradlew.bat assembleDebug
 ```
-Para gerar o wrapper se o Gradle estiver instalado: `gradle wrapper --gradle-version 8.9`.
+É necessário `apps/android/local.properties` com `sdk.dir=...` (arquivo local, ignorado pelo git). Na primeira execução o Gradle baixa o Android SDK Platform 35 sozinho.
 
 ## 4. Instalar no celular
 - **Via cabo (ADB)**: ativar *Depuração USB* e executar `adb install -r app/build/outputs/apk/debug/app-debug.apk`.

@@ -38,3 +38,10 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Android
+apps/android/local.properties
+apps/android/.gradle/
+apps/android/.idea/
+*.keystore
+*.jks
