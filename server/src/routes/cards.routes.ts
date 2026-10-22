@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { cardService } from '../services/card.service';
+import { pairingService } from '../services/pairing.service';
 import { CreateCardDTO, UpdateCardDTO } from 'shared';
 import { logger } from '../utils/logger';
 
@@ -74,6 +75,32 @@ cardsRouter.delete('/:id', async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Card excluído com sucesso.' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao excluir card';
+    res.status(500).json({ error: message });
+  }
+});
+
+cardsRouter.post('/:id/pairing-code', async (req: Request, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const payload = await pairingService.generateCode(id);
+    res.json(payload);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao gerar código de pareamento';
+    res.status(400).json({ error: message });
+  }
+});
+
+cardsRouter.post('/:id/unpair', async (req: Request, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const success = await pairingService.unpairCard(id);
+    if (!success) {
+      res.status(400).json({ error: 'Nenhum dispositivo pareado encontrado para este card.' });
+      return;
+    }
+    res.json({ success: true, message: 'Aparelho desvinculado com sucesso.' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao desvincular aparelho';
     res.status(500).json({ error: message });
   }
 });
