@@ -99,27 +99,41 @@ phone-finder/
 - O backend deve implementar o Repository Pattern para permitir troca transparente de storage (JSON com atomic write ou SQLite).
 - A persistência deve sobreviver ao encerramento e reinicialização do processo Node.js.
 
-### 3.5 Operação em Rede Local (LAN)
-- O servidor deve ouvir explicitamente na interface `0.0.0.0` (todas as interfaces de rede).
-- A interface web e documentação devem orientar a descoberta do endereço IPv4 local (ex.: `192.168.x.x` ou `10.0.x.x`).
+### 3.5 Operação em Rede Local Wi-Fi
+- O servidor escuta explicitamente na interface `0.0.0.0` (todas as interfaces de rede).
+- Os dispositivos móveis e o computador operam conectados à **mesma rede Wi-Fi com acesso à internet**, o que garante estabilidade de tráfego local, impede o Android de descartar o Wi-Fi em favor de dados móveis e dispensa dependências de serviços de nuvem de terceiros (como Firebase/FCM).
 - Nunca utilizar hardcoded `localhost` ou `127.0.0.1` em URLs que precisam ser acessadas pelo celular.
 - Deve haver instruções claras de liberação de porta no Firewall do Windows.
 
+### 3.6 Cliente Android Nativo em Segundo Plano e Alerta com Tela Desligada
+- **Execução em Segundo Plano**: Utiliza um `Foreground Service` (`PhoneFinderForegroundService`) com notificação contínua de baixa prioridade (`IMPORTANCE_LOW`), mantendo a conexão Socket.IO viva mesmo quando o app não estiver visível.
+- **Prevenção de Suspensão de Wi-Fi e CPU**: O serviço aloca `PARTIAL_WAKE_LOCK` e `WifiManager.WifiLock` (`WIFI_MODE_FULL_HIGH_PERF`) para evitar queda de rádio Wi-Fi durante o modo de repouso (Doze Mode).
+- **Acendimento de Tela Desligada / Bloqueada**:
+  - Ao receber o evento `alert:locate`, o serviço despacha uma notificação de alta prioridade (`IMPORTANCE_HIGH`, `CATEGORY_ALARM`) associada a um `Full-Screen Intent (FSI)`.
+  - A Activity `LocateAlertActivity` está configurada com `showWhenLocked="true"`, `turnScreenOn="true"` e solicita a liberação temporária da tela de bloqueio (`requestDismissKeyguard`), garantindo que o display acenda e projete imediatamente o fundo 100% vermelho (#FF0000).
+- **Alertas Combinados (Visual + Sonoro + Vibração)**:
+  - **Visual**: Tela 100% vermelha `#FF0000` em tela cheia imersiva (sem barras do sistema) por exatamente 5 segundos.
+  - **Sonoro**: Reprodução de toque de alarme via `STREAM_ALARM` (`AudioAttributes.USAGE_ALARM`), garantindo toque audível mesmo que o celular esteja em modo silencioso ou vibracall.
+  - **Vibração**: Padrão de pulso contínuo via `Vibrator` durante o ciclo de 5 segundos.
+- **Encerramento Automático**: Após 5000ms, o som e vibração são imediatamente interrompidos e a Activity fecha-se de forma limpa, restaurando o estado original do aparelho.
+
 ---
 
-## 4. Critérios de Aceitação Obrigatórios (MVP)
+## 4. Critérios de Aceitação Obrigatórios
 
 1. Cadastro de dois ou mais cards com nomes distintos no dashboard.
 2. Geração de código de pareamento numérico de 6 dígitos no servidor com validade de 5 min.
-3. Acesso ao receptor pelo navegador do celular usando o IPv4 do computador na rede Wi-Fi local.
+3. Acesso ao receptor pelo navegador do celular (/receiver) ou aplicativo Android APK na rede Wi-Fi local.
 4. Vinculação correta entre o celular que digitou o código e o card correspondente.
 5. Código invalidado imediatamente após o uso ou após expirar.
 6. Dashboard reflete com precisão o estado online/offline dos celulares.
 7. Ao clicar em "Localizar celular" no card A, somente o celular A reage.
 8. Celular exibe tela 100% vermelha por 5 segundos e retorna ao normal.
-9. Card desconectado mantém o botão desabilitado e bloqueia envios indevidos.
-10. Feedback visual claro de erro, carregamento, sucesso e estados vazios.
-11. Dados dos cards permanecem salvos após reinicialização do servidor.
-12. Exclusão e renomeação de cards funcionando com confirmação antes da remoção.
-13. Operação 100% offline (sem necessidade de internet ativa após dependências instaladas).
-14. Documentação completa de execução, firewall e testes no README.
+9. No aplicativo Android, o alarme funciona em segundo plano mesmo com a tela apagada/bloqueada, acendendo o display em vermelho com som e vibração.
+10. Card desconectado mantém o botão desabilitado e bloqueia envios indevidos.
+11. Feedback visual claro de erro, carregamento, sucesso e estados vazios.
+12. Dados dos cards permanecem salvos após reinicialização do servidor.
+13. Exclusão e renomeação de cards funcionando com confirmação antes da remoção.
+14. Operação em rede Wi-Fi com internet sem dependência de serviços externos em nuvem.
+15. Documentação completa de execução, firewall e testes no README.
+

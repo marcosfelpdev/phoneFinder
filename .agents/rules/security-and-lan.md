@@ -2,10 +2,12 @@
 
 ## 1. Princípios de Rede Local (LAN)
 
-### 1.1 Escopo Exclusivamente Local
-- O Phone Finder foi concebido para ambientes fechados e controlados (escritórios, bancadas de teste, estoques).
-- **Sem dependência de nuvem**: A aplicação deve operar plenamente sem acesso à internet, usando apenas a rede local Wi-Fi.
+### 1.1 Escopo Exclusivamente Local em Rede Wi-Fi
+- O Phone Finder foi concebido para ambientes corporativos e técnicos (escritórios, bancadas de teste, estoques).
+- **Sem dependência de serviços em nuvem**: A comunicação entre dashboard, servidor e aplicativos receptores é direta via Socket.IO pela rede Wi-Fi local, sem necessidade de servidores externos ou contas de terceiros (como Firebase/FCM).
+- **Rede Wi-Fi com Internet**: Os dispositivos e o computador operam conectados na mesma rede Wi-Fi com internet, garantindo que os smartphones Android mantenham o rádio Wi-Fi ativo e estável (evitando o desligamento automático por falta de gateway para a internet).
 - Recursos estáticos (fontes, ícones, scripts) devem ser empacotados localmente no bundle; nenhuma chamada a CDNs externas em tempo de execução é permitida.
+
 
 ### 1.2 Binding de Rede e Descoberta de IP
 - O servidor Express e o servidor Socket.IO devem obrigatoriamente realizar o `listen` em `0.0.0.0` (todas as interfaces de rede disponíveis).

@@ -34,39 +34,83 @@ No `AndroidManifest.xml`:
     ...>
 ```
 
-## 2. Implementação do Alerta Visual de 5 Segundos
+## 2. Padrão de Execução em Segundo Plano (Foreground Service)
 
-Ao receber o evento `alert:locate`:
+Para manter a conexão Socket.IO viva sem sofrer encerramento pelo Doze Mode do Android:
+1. Um `PhoneFinderForegroundService` é mantido ativo com uma notificação contínua (`IMPORTANCE_LOW`).
+2. O serviço segura um `PARTIAL_WAKE_LOCK` e um `WifiLock` (`WIFI_MODE_FULL_HIGH_PERF`).
+3. Ao receber `alert:locate`:
+   - Emite `alert:ack` imediato com `commandId`.
+   - Dispara uma notificação de alta importância (`IMPORTANCE_HIGH`, `CATEGORY_ALARM`) com **`setFullScreenIntent`** direcionado para `LocateAlertActivity`.
+   - Dispara `SoundAndVibrationHelper` para tocar alarme em `STREAM_ALARM` e vibrar.
+
 ```kotlin
-socket.on("alert:locate") { args ->
-    val payload = args[0] as JSONObject
-    val commandId = payload.getString("commandId")
-    val durationMs = payload.optLong("durationMs", 5000L)
-
-    // Enviar ACK imediato
-    val ack = JSONObject().apply {
-        put("commandId", commandId)
-        put("status", "ok")
-    }
-    socket.emit("alert:ack", ack)
-
-    // Acionar a tela vermelha na thread de UI
-    runOnUiThread {
-        showRedScreen(durationMs)
-    }
+val alertIntent = Intent(context, LocateAlertActivity::class.java).apply {
+    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    putExtra("commandId", commandId)
+    putExtra("durationMs", durationMs)
 }
 
-private fun showRedScreen(durationMs: Long) {
-    binding.fullScreenRedOverlay.visibility = View.VISIBLE
-    lifecycleScope.launch {
-        delay(durationMs)
-        binding.fullScreenRedOverlay.visibility = View.GONE
-    }
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    commandId.hashCode(),
+    alertIntent,
+    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+)
+
+val notification = NotificationCompat.Builder(context, CHANNEL_ALERT_ID)
+    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+    .setContentTitle("Localizando Celular!")
+    .setContentText("Alerta visual e sonoro em andamento...")
+    .setPriority(NotificationCompat.PRIORITY_MAX)
+    .setCategory(NotificationCompat.CATEGORY_ALARM)
+    .setFullScreenIntent(pendingIntent, true)
+    .setAutoCancel(true)
+    .build()
+
+notificationManager.notify(NOTIFICATION_ALERT_ID, notification)
+```
+
+## 3. Despertar de Tela Apagada e Bloqueada (`LocateAlertActivity`)
+
+No `AndroidManifest.xml`:
+```xml
+<activity
+    android:name=".ui.LocateAlertActivity"
+    android:exported="false"
+    android:showWhenLocked="true"
+    android:turnScreenOn="true"
+    android:launchMode="singleInstance"
+    android:excludeFromRecents="true"
+    android:theme="@style/Theme.PhoneFinder.Alert" />
+```
+
+No `onCreate()` da `LocateAlertActivity`:
+```kotlin
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+    setShowWhenLocked(true)
+    setTurnScreenOn(true)
+    val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+    keyguardManager.requestDismissKeyguard(this, null)
+} else {
+    @Suppress("DEPRECATION")
+    window.addFlags(
+        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+    )
+}
+
+// Tela 100% vermelha por 5 segundos
+lifecycleScope.launch {
+    delay(durationMs)
+    finish()
 }
 ```
 
-## 3. Diretrizes de Ciclo de Vida e Segurança
-- O app deve priorizar o funcionamento em **primeiro plano** com `FLAG_KEEP_SCREEN_ON`.
-- Evitar prometer sobreposição de tela com o aparelho bloqueado sem permissão explícita de `SYSTEM_ALERT_WINDOW` e conformidade com as restrições do Google Play para Android 10+.
+## 4. Alertas Sonoros e Vibração (`SoundAndVibrationHelper`)
+- **Som**: Usa `RingtoneManager` ou `MediaPlayer` associado a `AudioAttributes.USAGE_ALARM` para garantir que o som toque mesmo em modo não perturbe / silencioso.
+- **Vibração**: `Vibrator` com padrão contínuo ou pulsado pelo tempo de duração do alerta (5 segundos).
 
 Consulte a arquitetura completa em [references/android-architecture.md](./references/android-architecture.md).
+

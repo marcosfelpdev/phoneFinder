@@ -112,17 +112,35 @@ New-NetFirewallRule -DisplayName "Phone Finder LAN" -Direction Inbound -LocalPor
 
 ---
 
-## 8. Limitações Conhecidas do Receptor Web
+## 8. Receptor Web vs Aplicativo Android APK
 
-- O navegador do celular deve **permanecer com a aba aberta em primeiro plano**.
-- Celulares bloqueados ou em segundo plano têm seus timers e conexões WebSocket suspensos pelo sistema operacional móvel.
-- O app nativo Android em Kotlin contorna essa limitação mantendo o ciclo de vida e tela ativa em bancadas.
+| Recurso | Receptor Web (`/receiver`) | Aplicativo Android Nativo (APK) |
+| :--- | :--- | :--- |
+| **Instalação** | Nenhuma (basta acessar via navegador) | Instalação de APK local no dispositivo |
+| **Execução em 2º Plano** | Limitada (navegador suspende abas em background) | **Suportada via Foreground Service** |
+| **Tela Apagada / Bloqueada** | Não acende sem interação prévia | **Acende display via Full-Screen Intent** |
+| **Alertas Sonoros** | Sujeito a políticas de autoplay do browser | **Toque de alarme via `STREAM_ALARM`** |
+| **Vibração** | Sujeita ao suporte do navegador | **Vibração contínua/pulsada por 5 segundos** |
 
 ---
 
-## 9. Diretrizes do Projeto Android Nativo
+## 9. Aplicativo Android Nativo (APK em Segundo Plano)
 
-O aplicativo Android nativo encontra-se na pasta `apps/android/` e utiliza Kotlin com a biblioteca oficial `io.socket:socket.io-client:2.1.1`.
-- Abra a pasta `apps/android` no **Android Studio**.
-- Sincronize o projeto via Gradle (`Sync Project with Gradle Files`).
-- O app utiliza `FLAG_KEEP_SCREEN_ON` para manter a tela sempre visível na bancada de trabalho.
+O módulo Android nativo está localizado em `apps/android/` e foi estruturado para resolver o problema de celulares com tela apagada ou app em segundo plano:
+
+1. **Foreground Service (`PhoneFinderForegroundService`)**:
+   - Mantém uma notificação contínua no sistema (`IMPORTANCE_LOW`), prevenindo o encerramento do processo pelo Doze Mode do Android.
+   - Retém `PARTIAL_WAKE_LOCK` e `WifiLock` (`WIFI_MODE_FULL_HIGH_PERF`) para assegurar que o rádio Wi-Fi continue acordado.
+2. **Despertar de Tela e Alerta Visual (`LocateAlertActivity`)**:
+   - Ao receber `alert:locate`, dispara uma notificação de alarme com **`Full-Screen Intent (FSI)`**.
+   - A tela liga automaticamente (`turnScreenOn=true`), sobrepõe a tela de bloqueio (`showWhenLocked=true`) e exibe fundo 100% vermelho (#FF0000) por 5 segundos.
+3. **Opções de Identificação**:
+   - **Visual**: Fundo vermelho sem texto ou interferência visual.
+   - **Sonoro**: Toque de alarme configurado em `STREAM_ALARM`, garantindo toque mesmo em modo silencioso ou não perturbe.
+   - **Vibração**: Vibração pulsada durante o período de 5 segundos.
+4. **Como Executar e Gerar o APK**:
+   - Abra o diretório `apps/android` no **Android Studio**.
+   - Sincronize as dependências via Gradle.
+   - Gere o APK de depuração ou release (`Build > Build APK(s)` ou `./gradlew assembleDebug`).
+   - Instale no celular e digite o código de pareamento gerado no dashboard.
+
