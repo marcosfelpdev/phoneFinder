@@ -45,11 +45,14 @@ cd apps/android
 3. Clicar em **Localizar Celular** no card: a tela deve acender em vermelho por 5 s com som de alarme e vibração.
 4. Se a tela não acender mas o som/vibração ocorrerem, revisar os itens 4 e 5 acima.
 
-## 7. Dispositivo validado
+## 7. Dispositivos validados
 - **Samsung Galaxy A21s (SM-A217M), Android 12 / One UI**: instalação via `adb install -r` OK, `PhoneFinderForegroundService` com `isForeground=true`, app conecta ao servidor (`Conectado (Wi-Fi)`), celular em `192.168.1.19` alcança o PC em `192.168.1.4:3001`.
-- Android 12 não exige a permissão `POST_NOTIFICATIONS` (somente Android 13+).
-- **Samsung One UI** — para o alerta funcionar com a tela apagada, conferir em *Configurações > Bateria > Limites de uso em segundo plano*: remover o Phone Finder de "Apps em suspensão" / "Apps em suspensão profunda" e colocar em "Apps que nunca ficam em suspensão". Em *Apps > Phone Finder > Bateria*, escolher **Sem restrições**.
-- Diagnóstico por ADB: `adb shell dumpsys activity services com.phonefinder` (confirmar `isForeground=true`) e `adb logcat -d | findstr phonefinder`.
+- **Xiaomi / POCO (25078PC3EG), Android 15 / HyperOS**: instalação via `adb install -r` OK, IP `192.168.1.2`, app conectado e foreground service ativo com o novo ícone launcher personalizado.
+- **Diferenças por SO móvel**:
+  - **Android 12**: não requer permissão em tempo de execução `POST_NOTIFICATIONS`.
+  - **Android 13+ (incluindo Android 15)**: requer confirmação de permissão de Notificações (`POST_NOTIFICATIONS`) e liberação de *Notificações em tela cheia* para acordar o display bloqueado.
+  - **Xiaomi/MIUI/HyperOS**: para instalação remota via ADB, exige ativar "Instalar via USB" nas *Opções do desenvolvedor*.
+  - **Samsung One UI**: para segundo plano confiável, desativar otimização em *Bateria > Limites de uso em segundo plano > Apps que nunca ficam em suspensão*.
 
 ## 8. Release assinado (opcional)
 `Build > Generate Signed Bundle / APK > APK` com um keystore próprio. Nunca versionar o keystore.
