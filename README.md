@@ -138,9 +138,11 @@ O módulo Android nativo está localizado em `apps/android/` e foi estruturado p
    - **Visual**: Fundo vermelho sem texto ou interferência visual.
    - **Sonoro**: Toque de alarme configurado em `STREAM_ALARM`, garantindo toque mesmo em modo silencioso ou não perturbe.
    - **Vibração**: Vibração pulsada durante o período de 5 segundos.
-4. **Como Executar e Gerar o APK**:
-   - Abra o diretório `apps/android` no **Android Studio**.
-   - Sincronize as dependências via Gradle.
-   - Gere o APK de depuração ou release (`Build > Build APK(s)` ou `./gradlew assembleDebug`).
-   - Instale no celular e digite o código de pareamento gerado no dashboard.
+4. **Como Gerar e Instalar o APK** (guia completo em [`build-apk.md`](.agents/skills/phone-finder-android-native/references/build-apk.md)):
+   - Instale o **Android Studio** e o **Android SDK Platform 35**.
+   - `File > Open` na pasta `apps/android` e aguarde o Gradle Sync.
+   - `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
+   - O arquivo gerado fica em `apps/android/app/build/outputs/apk/debug/app-debug.apk`.
+   - Instale no celular (`adb install -r app-debug.apk` ou copiando o arquivo).
+   - No app, informe `http://<IPv4-do-PC>:3001`, conceda notificações, desative a restrição de bateria e pareie com o código do dashboard.
 

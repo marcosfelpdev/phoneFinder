@@ -113,4 +113,5 @@ lifecycleScope.launch {
 - **Vibração**: `Vibrator` com padrão contínuo ou pulsado pelo tempo de duração do alerta (5 segundos).
 
 Consulte a arquitetura completa em [references/android-architecture.md](./references/android-architecture.md).
+Para gerar, instalar e configurar o APK nos celulares, siga [references/build-apk.md](./references/build-apk.md).
 
