@@ -5,7 +5,7 @@ O **Phone Finder** é uma aplicação voltada para localização visual imediata
 A operação é **100% em rede local Wi-Fi**, sem nenhuma dependência de infraestrutura na nuvem ou serviços externos.
 
 O sistema opera através de:
-1. **Dashboard Web (PC/Desktop)**: Permite cadastrar cards para representar aparelhos, gerar códigos de pareamento de 6 dígitos, monitorar o status online/offline em tempo real e disparar o comando "Localizar celular".
+1. **Dashboard Web (PC/Desktop)**: Permite cadastrar cards para representar aparelhos, gerar códigos de pareamento de 6 dígitos, monitorar o status online/offline em tempo real, filtrar instantaneamente aparelhos por nome com barra de pesquisa integrada e disparar o comando "Localizar celular".
 2. **Servidor Node.js + Express + Socket.IO**: Gerencia o ciclo de vida dos cartões, gera e valida códigos de pareamento com expiração de 5 minutos, mapeia conexões em tempo real por identificador persistente e despacha comandos com garantia de unicidade e target isolado.
 3. **Receptor Web (`/receiver`)**: Interface leve e responsiva acessível pelo navegador do celular para testes imediatos sem instalação prévia.
 4. **Cliente Android Nativo (Kotlin)**: Aplicativo nativo estruturado para controle direto da tela, maior confiabilidade de conexão e controle do ciclo de vida do dispositivo.

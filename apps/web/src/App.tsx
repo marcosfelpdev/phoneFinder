@@ -6,6 +6,7 @@ import { AddCardModal } from './components/AddCardModal';
 import { EditCardModal } from './components/EditCardModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { PairingModal } from './components/PairingModal';
+import { SearchBar } from './components/SearchBar';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Receiver } from './pages/Receiver';
 import { CardWithStatus, LocateFeedbackPayload, SystemInfoResponse, SOCKET_EVENTS } from 'shared';
@@ -14,6 +15,7 @@ export function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modais
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -111,6 +113,16 @@ export function App() {
     setPairingCard(card);
   };
 
+  // Filtragem instantânea por nome do celular
+  const filteredCards = cards.filter((card) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      card.name.toLowerCase().includes(query) ||
+      (card.description && card.description.toLowerCase().includes(query))
+    );
+  });
+
   return (
     <div className="app-container">
       {/* Cabeçalho Principal */}
@@ -194,12 +206,13 @@ export function App() {
         <Receiver />
       ) : (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Barra de Ações do Dashboard */}
+          {/* Barra de Ações do Dashboard (div:nth-child(1)) */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h2 style={{ fontSize: '1.35rem' }}>Celulares Cadastrados</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                Gerencie seus aparelhos físicos ({cards.length} cadastrado{cards.length === 1 ? '' : 's'})
+                Gerencie seus aparelhos físicos ({cards.length} cadastrado{cards.length === 1 ? '' : 's'}
+                {searchQuery.trim() ? ` • ${filteredCards.length} encontrado${filteredCards.length === 1 ? '' : 's'}` : ''})
               </p>
             </div>
 
@@ -211,6 +224,15 @@ export function App() {
               + Adicionar celular
             </button>
           </div>
+
+          {/* Barra de Pesquisa com Filtragem Instantânea (entre div:nth-child(1) e #devices-cards-grid) */}
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Buscar celular por nome..."
+            totalCards={cards.length}
+            filteredCount={filteredCards.length}
+          />
 
           {/* Tratamento de Erro */}
           {error && (
@@ -279,9 +301,57 @@ export function App() {
                 + Adicionar celular agora
               </button>
             </div>
+          ) : filteredCards.length === 0 ? (
+            <div
+              id="search-empty-state"
+              style={{
+                background: 'var(--bg-surface)',
+                border: '1px dashed var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '3rem 2rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '1rem',
+              }}
+            >
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-primary)',
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>
+                  Nenhum celular encontrado
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  Nenhum aparelho corresponde à busca por "<strong>{searchQuery}</strong>".
+                </p>
+              </div>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1.1rem' }}
+                onClick={() => setSearchQuery('')}
+              >
+                Limpar pesquisa
+              </button>
+            </div>
           ) : (
             <div className="cards-grid" id="devices-cards-grid">
-              {cards.map((card) => (
+              {filteredCards.map((card) => (
                 <DeviceCard
                   key={card.id}
                   card={card}
