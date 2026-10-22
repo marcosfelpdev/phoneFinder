@@ -92,7 +92,7 @@ class PhoneFinderForegroundService : Service() {
         val cardName = preferences.cardName ?: "Aparelho não pareado"
 
         return NotificationCompat.Builder(this, CHANNEL_SERVICE_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Phone Finder — $cardName")
             .setContentText(statusText)
             .setOngoing(true)
