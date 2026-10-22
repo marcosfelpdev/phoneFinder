@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { cardService } from '../services/card.service';
 import { pairingService } from '../services/pairing.service';
+import { commandService } from '../services/command.service';
 import { CreateCardDTO, UpdateCardDTO } from 'shared';
 import { logger } from '../utils/logger';
 
@@ -11,6 +12,10 @@ function getParamId(req: Request): string {
   return Array.isArray(id) ? id[0] : id;
 }
 
+/**
+ * GET /api/cards
+ * Retorna todos os cards persistidos com o status em tempo real da conexão.
+ */
 cardsRouter.get('/', async (_req: Request, res: Response) => {
   try {
     const cards = await cardService.getAllCardsWithStatus();
@@ -22,6 +27,10 @@ cardsRouter.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/cards/:id
+ * Retorna os detalhes de um card específico.
+ */
 cardsRouter.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = getParamId(req);
@@ -37,6 +46,10 @@ cardsRouter.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/cards
+ * Cadastra um novo card representando um celular físico.
+ */
 cardsRouter.post('/', async (req: Request, res: Response) => {
   try {
     const dto: CreateCardDTO = req.body;
@@ -48,6 +61,10 @@ cardsRouter.post('/', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * PUT /api/cards/:id
+ * Atualiza o nome ou descrição do card, mantendo o ID interno inalterado.
+ */
 cardsRouter.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = getParamId(req);
@@ -64,6 +81,10 @@ cardsRouter.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/cards/:id
+ * Remove um card após confirmação.
+ */
 cardsRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
     const id = getParamId(req);
@@ -79,6 +100,10 @@ cardsRouter.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/cards/:id/pairing-code
+ * Gera um código numérico de 6 dígitos para o card (expira em 5 min, uso único).
+ */
 cardsRouter.post('/:id/pairing-code', async (req: Request, res: Response) => {
   try {
     const id = getParamId(req);
@@ -90,6 +115,10 @@ cardsRouter.post('/:id/pairing-code', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/cards/:id/unpair
+ * Desvincula explicitamente o dispositivo associado ao card.
+ */
 cardsRouter.post('/:id/unpair', async (req: Request, res: Response) => {
   try {
     const id = getParamId(req);
@@ -102,5 +131,24 @@ cardsRouter.post('/:id/unpair', async (req: Request, res: Response) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao desvincular aparelho';
     res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/cards/:id/locate
+ * Dispara o comando de localização visual para o celular vinculado ao card.
+ */
+cardsRouter.post('/:id/locate', async (req: Request, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const feedback = await commandService.triggerLocate(id);
+    if (feedback.status === 'timeout' || feedback.status === 'error') {
+      res.status(408).json(feedback);
+      return;
+    }
+    res.json(feedback);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao disparar comando de localização';
+    res.status(400).json({ error: message });
   }
 });
