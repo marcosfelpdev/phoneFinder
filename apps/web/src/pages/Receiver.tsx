@@ -53,6 +53,31 @@ export function Receiver() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [deviceId, requestWakeLock]);
+  // Enviar telemetria de bateria a cada ciclo de 10 minutos ou na conexão
+  const reportBattery = useCallback(() => {
+    const currentDeviceId = deviceId || localStorage.getItem(STORAGE_KEY_DEVICE_ID);
+    if (!currentDeviceId || !socket.connected) return;
+
+    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
+      (navigator as any).getBattery().then((b: any) => {
+        const level = Math.round(b.level * 100);
+        const isCharging = b.charging;
+        socket.emit(SOCKET_EVENTS.DEVICE_BATTERY, {
+          deviceId: currentDeviceId,
+          level,
+          isCharging,
+        });
+      }).catch((e: unknown) => console.warn('Erro ao ler bateria web:', e));
+    }
+  }, [deviceId]);
+
+  useEffect(() => {
+    if (deviceId && isSocketConnected) {
+      reportBattery();
+      const interval = setInterval(reportBattery, 10 * 60 * 1000); // Ciclo de 10 minutos
+      return () => clearInterval(interval);
+    }
+  }, [deviceId, isSocketConnected, reportBattery]);
 
   useEffect(() => {
     // Monitorar conexão de socket
@@ -378,6 +403,20 @@ export function Receiver() {
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
               💡 Dica: O código expira em 5 minutos e é válido para uma única utilização.
             </p>
+          
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                Prefere o aplicativo nativo que acende a tela mesmo bloqueada?
+              </p>
+              <a
+                href="/api/apk/download"
+                download="PhoneFinder.apk"
+                className="btn btn-secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', padding: '0.45rem 0.9rem', textDecoration: 'none' }}
+              >
+                <span>📲</span> Baixar App Android Nativo (APK)
+              </a>
+            </div>
           </form>
         )}
       </div>

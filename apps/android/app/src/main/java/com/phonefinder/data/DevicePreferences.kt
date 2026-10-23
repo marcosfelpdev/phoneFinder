@@ -15,11 +15,18 @@ class DevicePreferences(context: Context) {
         private const val KEY_OPT_SOUND = "opt_sound"
         private const val KEY_OPT_VIBRATE = "opt_vibrate"
         private const val KEY_OPT_SERVICE = "opt_foreground_service"
-        const val DEFAULT_SERVER_URL = "http://192.168.1.4:3001"
+        const val DEFAULT_SERVER_URL = "http://192.168.20.250:3001"
     }
 
     var serverUrl: String
-        get() = prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+        get() {
+            val saved = prefs.getString(KEY_SERVER_URL, null)
+            // Se for nulo ou se for o IP legado do desenvolvedor original (192.168.1.4), substituir pelo IP atual
+            if (saved == null || saved.contains("192.168.1.4")) {
+                return DEFAULT_SERVER_URL
+            }
+            return saved
+        }
         set(value) = prefs.edit().putString(KEY_SERVER_URL, value.trim()).apply()
 
     var deviceId: String?

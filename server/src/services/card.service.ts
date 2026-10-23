@@ -8,9 +8,11 @@ export class CardService {
     const cards = await cardRepository.findAll();
     return cards.map((card) => {
       const isConnected = presenceService.isDeviceConnected(card.pairedDeviceId);
+      const battery = presenceService.getDeviceBattery(card.pairedDeviceId);
       return {
         ...card,
         status: isConnected ? 'connected' : 'disconnected',
+        battery,
       };
     });
   }
@@ -20,9 +22,11 @@ export class CardService {
     if (!card) return null;
 
     const isConnected = presenceService.isDeviceConnected(card.pairedDeviceId);
+    const battery = presenceService.getDeviceBattery(card.pairedDeviceId);
     return {
       ...card,
       status: isConnected ? 'connected' : 'disconnected',
+      battery,
     };
   }
 
@@ -80,9 +84,11 @@ export class CardService {
     if (!updated) return null;
 
     const isConnected = presenceService.isDeviceConnected(updated.pairedDeviceId);
+    const battery = presenceService.getDeviceBattery(updated.pairedDeviceId);
     return {
       ...updated,
       status: isConnected ? 'connected' : 'disconnected',
+      battery,
     };
   }
 

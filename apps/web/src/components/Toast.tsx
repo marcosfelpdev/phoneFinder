@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface ToastMessage {
   id: string;
@@ -14,6 +14,8 @@ interface ToastProps {
 export function ToastContainer({ toasts, onDismiss }: ToastProps) {
   return (
     <div
+      role="region"
+      aria-label="Notificações"
       style={{
         position: 'fixed',
         bottom: '1.5rem',
@@ -21,9 +23,10 @@ export function ToastContainer({ toasts, onDismiss }: ToastProps) {
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
-        maxWidth: '380px',
+        gap: '0.65rem',
+        maxWidth: '400px',
         width: 'calc(100% - 3rem)',
+        pointerEvents: 'none',
       }}
     >
       {toasts.map((toast) => (
@@ -34,12 +37,32 @@ export function ToastContainer({ toasts, onDismiss }: ToastProps) {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: string) => void }) {
+  const [isClosing, setIsClosing] = useState(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onDismiss(toast.id);
+    // Inicia o fechamento suave aos 3.7s e remove do DOM aos 4s
+    const fadeTimer = setTimeout(() => {
+      setIsClosing(true);
+    }, 3700);
+
+    const removeTimer = setTimeout(() => {
+      onDismissRef.current(toast.id);
     }, 4000);
-    return () => clearTimeout(timer);
-  }, [toast.id, onDismiss]);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(removeTimer);
+    };
+  }, [toast.id]); // Apenas toast.id como dependência garante que re-renders do pai não reiniciem o timer!
+
+  const handleManualClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onDismissRef.current(toast.id);
+    }, 200);
+  };
 
   const bgColor =
     toast.type === 'success'
@@ -50,6 +73,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
 
   return (
     <div
+      role="alert"
       style={{
         background: bgColor,
         color: 'white',
@@ -63,20 +87,33 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
         fontSize: '0.9rem',
         fontWeight: 500,
         backdropFilter: 'blur(8px)',
+        pointerEvents: 'auto',
+        transition: 'opacity 0.25s ease, transform 0.25s ease',
+        opacity: isClosing ? 0 : 1,
+        transform: isClosing ? 'translateY(10px) scale(0.96)' : 'translateY(0) scale(1)',
         animation: 'fadeIn 0.2s ease-out',
       }}
     >
-      <span>{toast.message}</span>
+      <span style={{ wordBreak: 'break-word', lineHeight: 1.4 }}>{toast.message}</span>
       <button
-        onClick={() => onDismiss(toast.id)}
+        onClick={handleManualClose}
+        aria-label="Fechar notificação"
         style={{
           background: 'transparent',
           border: 'none',
           color: 'rgba(255, 255, 255, 0.8)',
           cursor: 'pointer',
-          padding: '0.2rem',
+          padding: '0.2rem 0.4rem',
           fontSize: '1rem',
+          lineHeight: 1,
+          borderRadius: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = '#ffffff')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)')}
       >
         ✕
       </button>

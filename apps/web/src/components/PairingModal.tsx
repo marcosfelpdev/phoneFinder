@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { CardWithStatus, SystemInfoResponse } from 'shared';
 import { usePairing } from '../hooks/usePairing';
 
@@ -8,9 +9,17 @@ interface PairingModalProps {
   onClose: () => void;
   systemInfo: SystemInfoResponse | null;
   onUnpairSuccess: () => void;
+  onOpenApkModal?: () => void;
 }
 
-export function PairingModal({ card, isOpen, onClose, systemInfo, onUnpairSuccess }: PairingModalProps) {
+export function PairingModal({
+  card,
+  isOpen,
+  onClose,
+  systemInfo,
+  onUnpairSuccess,
+  onOpenApkModal,
+}: PairingModalProps) {
   const {
     pairingData,
     timeLeftSeconds,
@@ -24,6 +33,7 @@ export function PairingModal({ card, isOpen, onClose, systemInfo, onUnpairSucces
 
   const [unpairing, setUnpairing] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const showQr = true;
 
   if (!isOpen || !card) return null;
 
@@ -108,21 +118,54 @@ export function PairingModal({ card, isOpen, onClose, systemInfo, onUnpairSucces
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'left', lineHeight: '1.5' }}>
-              1. No celular conectado à mesma rede Wi-Fi, acesse o receptor pelo endereço:<br />
-              <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>{lanUrl}</strong>
-            </p>
-
-            <button
-              className="btn btn-secondary"
-              style={{ alignSelf: 'flex-start', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              onClick={handleCopyLink}
-            >
-              {copyFeedback ? '✓ Copiado!' : '📋 Copiar link do receptor'}
-            </button>
+            {/* Instruções com QR Code */}
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255, 255, 255, 0.02)', padding: '0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+              {showQr && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    padding: '0.5rem',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                  title="Escaneie com a câmera do celular para abrir o receptor"
+                >
+                  <QRCodeSVG value={lanUrl} size={84} level="M" />
+                </div>
+              )}
+              <div style={{ textAlign: 'left', flex: 1 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.4', marginBottom: '0.4rem' }}>
+                  Acesse no navegador do celular ou aponte a câmera para o QR Code:
+                </p>
+                <div style={{ color: 'var(--accent-cyan)', fontFamily: 'monospace', fontSize: '0.825rem', wordBreak: 'break-all', marginBottom: '0.4rem' }}>
+                  {lanUrl}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                    onClick={handleCopyLink}
+                  >
+                    {copyFeedback ? '✓ Copiado!' : '📋 Copiar'}
+                  </button>
+                  {onOpenApkModal && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--accent-primary)' }}
+                      onClick={onOpenApkModal}
+                    >
+                      📲 Baixar APK Nativo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'left' }}>
-              2. Digite o código de pareamento abaixo na tela do celular:
+              Digite o código de pareamento abaixo no celular ou aplicativo Android:
             </p>
 
             {/* Código de Pareamento de 6 Dígitos */}

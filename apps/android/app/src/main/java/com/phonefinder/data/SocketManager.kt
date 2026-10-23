@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit
 class SocketManager(private val preferences: DevicePreferences) {
 
     private var socket: Socket? = null
+    private var currentConnectedUrl: String? = null
     private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var reconnectJob: Job? = null
 
@@ -35,10 +36,12 @@ class SocketManager(private val preferences: DevicePreferences) {
     var onDeviceUnpaired: (() -> Unit)? = null
 
     fun connect(serverUrl: String = preferences.serverUrl) {
+        val normalizedUrl = normalizeUrl(serverUrl)
         disconnect()
 
         try {
-            val uri = URI.create(serverUrl)
+            currentConnectedUrl = normalizedUrl
+            val uri = URI.create(normalizedUrl)
             val options = IO.Options().apply {
                 callFactory = okHttpClient
                 webSocketFactory = okHttpClient
@@ -48,13 +51,14 @@ class SocketManager(private val preferences: DevicePreferences) {
                 reconnectionDelay = 2000
                 reconnectionDelayMax = 10000
                 timeout = 20000
-                transports = arrayOf("websocket")
+                // Habilitar websocket com fallback de polling para compatibilidade total de rede
+                transports = arrayOf("websocket", "polling")
             }
 
-            Log.d(TAG, "Iniciando conexão Socket.IO para $serverUrl")
+            Log.d(TAG, "Iniciando conexão Socket.IO para $normalizedUrl")
             socket = IO.socket(uri, options).apply {
                 on(Socket.EVENT_CONNECT) {
-                    Log.i(TAG, "Socket conectado com sucesso (ID: ${id()})")
+                    Log.i(TAG, "Socket conectado com sucesso (ID: ${id()}) em $normalizedUrl")
                     cancelReconnect()
                     onConnectionChanged?.invoke(true)
                     // Se já tiver deviceId salvo, identifica-se na reconexão
@@ -75,7 +79,7 @@ class SocketManager(private val preferences: DevicePreferences) {
 
                 on(Socket.EVENT_CONNECT_ERROR) { args ->
                     val err = if (args.isNotEmpty()) args[0].toString() else "unknown"
-                    Log.w(TAG, "Erro de conexão no Socket: $err")
+                    Log.w(TAG, "Erro de conexão no Socket ($normalizedUrl): $err")
                     onConnectionChanged?.invoke(false)
                     if (preferences.deviceId != null) {
                         scheduleReconnect()
@@ -98,20 +102,19 @@ class SocketManager(private val preferences: DevicePreferences) {
                         val json = args[0] as JSONObject
                         val commandId = json.optString("commandId", "")
                         val durationMs = json.optLong("durationMs", 5000L)
-                        if (commandId.isNotEmpty()) {
-                            onAlertLocate?.invoke(commandId, durationMs)
-                        }
+                        onAlertLocate?.invoke(commandId, durationMs)
                     }
                 }
 
                 on("device:unpaired") {
+                    Log.i(TAG, "Recebido evento de desvinculação do card.")
                     onDeviceUnpaired?.invoke()
                 }
 
                 connect()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Falha crítica ao inicializar Socket.IO para $normalizedUrl", e)
             onConnectionChanged?.invoke(false)
         }
     }
@@ -120,6 +123,7 @@ class SocketManager(private val preferences: DevicePreferences) {
         val payload = JSONObject().apply {
             put("code", code)
         }
+        Log.d(TAG, "Enviando código de pareamento: $code")
         socket?.emit("pairing:submit", payload)
     }
 
@@ -127,16 +131,28 @@ class SocketManager(private val preferences: DevicePreferences) {
         val payload = JSONObject().apply {
             put("deviceId", deviceId)
         }
+        Log.d(TAG, "Identificando dispositivo: $deviceId")
         socket?.emit("device:identify", payload)
     }
 
-    fun sendAlertAck(commandId: String) {
-        val ack = JSONObject().apply {
+    fun sendAlertAck(commandId: String, status: String = "ok") {
+        val payload = JSONObject().apply {
             put("commandId", commandId)
-            put("status", "ok")
+            put("status", status)
             put("timestamp", System.currentTimeMillis())
         }
-        socket?.emit("alert:ack", ack)
+        socket?.emit("alert:ack", payload)
+    }
+
+    fun sendBatteryStatus(level: Int, isCharging: Boolean) {
+        val deviceId = preferences.deviceId ?: return
+        val payload = JSONObject().apply {
+            put("deviceId", deviceId)
+            put("level", level)
+            put("isCharging", isCharging)
+        }
+        Log.d(TAG, "Enviando telemetria de bateria: $level% (Carregando: $isCharging)")
+        socket?.emit("device:battery", payload)
     }
 
     fun disconnect() {
@@ -144,6 +160,7 @@ class SocketManager(private val preferences: DevicePreferences) {
         socket?.disconnect()
         socket?.off()
         socket = null
+        currentConnectedUrl = null
     }
 
     fun ensureConnected() {
@@ -152,12 +169,13 @@ class SocketManager(private val preferences: DevicePreferences) {
             return
         }
 
-        if (socket != null) {
-            Log.d(TAG, "ensureConnected: socket desconectado. Chamando socket.connect()...")
+        val targetUrl = normalizeUrl(preferences.serverUrl)
+        if (socket != null && currentConnectedUrl == targetUrl) {
+            Log.d(TAG, "ensureConnected: socket existente para $targetUrl desconectado. Chamando socket.connect()...")
             socket?.connect()
         } else {
-            Log.d(TAG, "ensureConnected: socket nulo. Inicializando nova conexão...")
-            connect(preferences.serverUrl)
+            Log.d(TAG, "ensureConnected: URL alterada ou socket nulo. Reiniciando conexão para $targetUrl...")
+            connect(targetUrl)
         }
     }
 
@@ -191,5 +209,41 @@ class SocketManager(private val preferences: DevicePreferences) {
 
     companion object {
         private const val TAG = "SocketManager"
+
+        /**
+         * Normaliza a URL do servidor:
+         * - Adiciona http:// se não fornecido
+         * - Redireciona porta 3000 (Vite) para 3001 (Socket.IO)
+         * - Adiciona porta :3001 se nenhuma porta for fornecida
+         * - Remove barras finais
+         */
+        fun normalizeUrl(raw: String): String {
+            var url = raw.trim()
+            if (url.isEmpty()) return ""
+
+            if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+                url = "http://$url"
+            }
+
+            // Remove trailing slashes
+            url = url.trimEnd('/')
+
+            val uri = try {
+                URI.create(url)
+            } catch (_: Exception) {
+                return url
+            }
+
+            val host = uri.host ?: url.substringAfter("://").substringBefore(':').substringBefore('/')
+            var port = uri.port
+
+            // Se o usuário digitou a porta 3000 do receptor web, converte para a porta 3001 do backend Socket.IO
+            if (port == 3000 || port == -1) {
+                port = 3001
+            }
+
+            val scheme = uri.scheme ?: "http"
+            return "$scheme://$host:$port"
+        }
     }
 }

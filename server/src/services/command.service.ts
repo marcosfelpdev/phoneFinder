@@ -99,7 +99,7 @@ export class CommandService {
     clearTimeout(pending.timeoutTimer);
     this.pendingCommands.delete(ack.commandId);
 
-    const isSuccess = ack.status === 'ok';
+    const isSuccess = !ack.status || ack.status === 'ok';
     const feedback: LocateFeedbackPayload = {
       cardId: pending.cardId,
       commandId: ack.commandId,

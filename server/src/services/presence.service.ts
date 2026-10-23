@@ -1,11 +1,12 @@
 import { Server } from 'socket.io';
-import { ClientToServerEvents, ServerToClientEvents, SOCKET_EVENTS } from 'shared';
+import { ClientToServerEvents, ServerToClientEvents, SOCKET_EVENTS, DeviceBatteryInfo } from 'shared';
 import { cardRepository } from '../repositories/json-card.repository';
 import { logger } from '../utils/logger';
 
 export class PresenceService {
   private deviceSockets: Map<string, Set<string>> = new Map();
   private socketDeviceMap: Map<string, string> = new Map();
+  private deviceBatteryMap: Map<string, DeviceBatteryInfo> = new Map();
   private io: Server<ClientToServerEvents, ServerToClientEvents> | null = null;
 
   setIO(io: Server<ClientToServerEvents, ServerToClientEvents>) {
@@ -21,6 +22,40 @@ export class PresenceService {
   getSocketIdsForDevice(deviceId: string): string[] {
     const sockets = this.deviceSockets.get(deviceId);
     return sockets ? Array.from(sockets) : [];
+  }
+
+  getDeviceBattery(deviceId?: string): DeviceBatteryInfo | undefined {
+    if (!deviceId) return undefined;
+    return this.deviceBatteryMap.get(deviceId);
+  }
+
+  async setDeviceBattery(
+    deviceId: string,
+    battery: { level: number; isCharging?: boolean }
+  ): Promise<void> {
+    const batteryInfo: DeviceBatteryInfo = {
+      level: Math.max(0, Math.min(100, Math.round(battery.level))),
+      isCharging: !!battery.isCharging,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.deviceBatteryMap.set(deviceId, batteryInfo);
+    logger.info(
+      'Presence',
+      `Bateria recebida de ${deviceId}: ${batteryInfo.level}% (Carregando: ${batteryInfo.isCharging})`
+    );
+
+    const card = await cardRepository.findByDeviceId(deviceId);
+    if (card && this.io) {
+      this.io.emit(SOCKET_EVENTS.CARD_BATTERY, {
+        cardId: card.id,
+        deviceId,
+        level: batteryInfo.level,
+        isCharging: batteryInfo.isCharging,
+        updatedAt: batteryInfo.updatedAt,
+      });
+      logger.info('Presence', `Broadcast de bateria emitido para card "${card.name}": ${batteryInfo.level}%`);
+    }
   }
 
   async registerDeviceSocket(deviceId: string, socketId: string): Promise<void> {
@@ -41,6 +76,18 @@ export class PresenceService {
         deviceId,
       });
       logger.info('Presence', `Notificado Dashboard: Card "${card.name}" está ONLINE`);
+
+      // Se já houver nível de bateria recente em memória, repassa imediatamente
+      const currentBattery = this.getDeviceBattery(deviceId);
+      if (currentBattery) {
+        this.io.emit(SOCKET_EVENTS.CARD_BATTERY, {
+          cardId: card.id,
+          deviceId,
+          level: currentBattery.level,
+          isCharging: currentBattery.isCharging,
+          updatedAt: currentBattery.updatedAt,
+        });
+      }
     }
   }
 
@@ -76,6 +123,7 @@ export class PresenceService {
       this.socketDeviceMap.delete(socketId);
     }
     this.deviceSockets.delete(deviceId);
+    this.deviceBatteryMap.delete(deviceId);
   }
 }
 

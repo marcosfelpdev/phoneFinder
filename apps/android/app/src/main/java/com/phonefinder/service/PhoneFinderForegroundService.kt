@@ -10,6 +10,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
@@ -50,6 +52,7 @@ class PhoneFinderForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var watchdogJob: Job? = null
+    private var batteryMonitorJob: Job? = null
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -66,6 +69,7 @@ class PhoneFinderForegroundService : Service() {
         registerNetworkCallback()
         scheduleKeepAliveAlarm()
         startWatchdog()
+        startBatteryMonitor()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -137,6 +141,9 @@ class PhoneFinderForegroundService : Service() {
             val status = if (isConnected) "● Conectado na rede Wi-Fi" else "● Reconectando ao servidor..."
             updateServiceNotification(status)
             onConnectionStateListener?.invoke(isConnected)
+            if (isConnected && preferences.deviceId != null) {
+                collectAndSendBattery()
+            }
         }
 
         socketManager.onPairingResult = { success, deviceId, cardName, error ->
@@ -144,6 +151,7 @@ class PhoneFinderForegroundService : Service() {
                 preferences.deviceId = deviceId
                 preferences.cardName = cardName
                 updateServiceNotification("● Conectado — $cardName")
+                collectAndSendBattery()
             }
             onPairingResultListener?.invoke(success, deviceId, cardName, error)
         }
@@ -288,6 +296,7 @@ class PhoneFinderForegroundService : Service() {
     }
 
     private fun startWatchdog() {
+        batteryMonitorJob?.cancel()
         watchdogJob?.cancel()
         watchdogJob = serviceScope.launch {
             while (isActive) {
@@ -302,6 +311,50 @@ class PhoneFinderForegroundService : Service() {
                     Log.e(TAG, "Erro no Watchdog de reconexão", e)
                 }
             }
+        }
+    }
+
+    
+    private fun startBatteryMonitor() {
+        batteryMonitorJob?.cancel()
+        batteryMonitorJob = serviceScope.launch {
+            while (isActive) {
+                try {
+                    if (preferences.deviceId != null && socketManager.isConnected) {
+                        collectAndSendBattery()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro no ciclo de monitoramento de bateria", e)
+                }
+                delay(BATTERY_CHECK_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun collectAndSendBattery() {
+        try {
+            val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = registerReceiver(null, batteryFilter)
+            if (batteryStatus != null) {
+                val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+
+                val batteryPct = if (level >= 0 && scale > 0) {
+                    (level * 100) / scale
+                } else {
+                    level
+                }
+
+                val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                        status == BatteryManager.BATTERY_STATUS_FULL
+
+                if (batteryPct in 0..100) {
+                    socketManager.sendBatteryStatus(batteryPct, isCharging)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao coletar nível de bateria", e)
         }
     }
 
@@ -356,8 +409,12 @@ class PhoneFinderForegroundService : Service() {
         }
     }
 
-    fun reconnectSocket() {
-        socketManager.ensureConnected()
+    fun reconnectSocket(forceNewUrl: Boolean = false) {
+        if (forceNewUrl) {
+            socketManager.connect(preferences.serverUrl)
+        } else {
+            socketManager.ensureConnected()
+        }
     }
 
     fun scheduleKeepAliveAlarm() {
@@ -544,11 +601,12 @@ class PhoneFinderForegroundService : Service() {
 
         const val KEEP_ALIVE_REQUEST_CODE = 2001
         const val KEEP_ALIVE_INTERVAL_MS = 120_000L // 2 minutos
+        const val BATTERY_CHECK_INTERVAL_MS = 10 * 60 * 1000L // 10 minutos
 
-        fun reconnect(context: Context) {
+        fun reconnect(context: Context, forceNewUrl: Boolean = true) {
             val s = instance
             if (s != null) {
-                s.reconnectSocket()
+                s.reconnectSocket(forceNewUrl)
             } else {
                 start(context)
             }

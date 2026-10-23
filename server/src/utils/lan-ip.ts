@@ -19,6 +19,7 @@ export function getLanInterfaces(webPort: number = 3000): LanInterfaceInfo[] {
           ip: addr.address,
           receiverUrl: `http://${addr.address}:${webPort}/receiver`,
           dashboardUrl: `http://${addr.address}:${webPort}`,
+          apkDownloadUrl: `http://${addr.address}:${webPort}/api/apk/download`,
         });
       }
     }
@@ -31,6 +32,7 @@ export function getLanInterfaces(webPort: number = 3000): LanInterfaceInfo[] {
       ip: '127.0.0.1',
       receiverUrl: `http://localhost:${webPort}/receiver`,
       dashboardUrl: `http://localhost:${webPort}`,
+      apkDownloadUrl: `http://localhost:${webPort}/api/apk/download`,
     });
   }
 

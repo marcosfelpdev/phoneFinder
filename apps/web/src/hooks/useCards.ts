@@ -37,10 +37,30 @@ export function useCards() {
       );
     };
 
+    // Ouvir telemetria de bateria recebida a cada ciclo de 10 minutos
+    const onCardBattery = (payload: { cardId: string; level: number; isCharging?: boolean; updatedAt: string }) => {
+      setCards((prevCards) =>
+        prevCards.map((card) =>
+          card.id === payload.cardId
+            ? {
+                ...card,
+                battery: {
+                  level: payload.level,
+                  isCharging: payload.isCharging,
+                  updatedAt: payload.updatedAt,
+                },
+              }
+            : card
+        )
+      );
+    };
+
     socket.on(SOCKET_EVENTS.DEVICE_STATUS, onDeviceStatus);
+    socket.on(SOCKET_EVENTS.CARD_BATTERY, onCardBattery);
 
     return () => {
       socket.off(SOCKET_EVENTS.DEVICE_STATUS, onDeviceStatus);
+      socket.off(SOCKET_EVENTS.CARD_BATTERY, onCardBattery);
     };
   }, [fetchCards]);
 

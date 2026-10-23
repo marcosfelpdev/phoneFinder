@@ -116,15 +116,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnConnectServer.setOnClickListener {
-            val newUrl = binding.edtServerUrl.text.toString().trim()
+            val rawUrl = binding.edtServerUrl.text.toString().trim()
+            val newUrl = SocketManager.normalizeUrl(rawUrl)
             if (newUrl.isNotEmpty()) {
+                binding.edtServerUrl.setText(newUrl)
                 preferences.serverUrl = newUrl
                 if (preferences.isForegroundServiceEnabled) {
-                    PhoneFinderForegroundService.reconnect(this)
+                    PhoneFinderForegroundService.reconnect(this, forceNewUrl = true)
                 } else {
                     localSocketManager?.connect(newUrl)
                 }
-                Toast.makeText(this, "Servidor atualizado: $newUrl", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Conectando ao servidor: $newUrl", Toast.LENGTH_SHORT).show()
             }
         }
 

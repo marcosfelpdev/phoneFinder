@@ -1,4 +1,13 @@
 /**
+ * Informações de nível e estado da bateria do dispositivo.
+ */
+export interface DeviceBatteryInfo {
+  level: number; // 0 a 100%
+  isCharging?: boolean;
+  updatedAt: string;
+}
+
+/**
  * Modelo de Card persistido no banco de dados local.
  */
 export interface Card {
@@ -15,11 +24,12 @@ export interface Card {
 export type DeviceConnectionStatus = 'connected' | 'disconnected';
 
 /**
- * Card enriquecido com o status em tempo real da conexão WebSocket.
+ * Card enriquecido com o status em tempo real da conexão WebSocket e telemetria de bateria.
  */
 export interface CardWithStatus extends Card {
   status: DeviceConnectionStatus;
   isLocating?: boolean;
+  battery?: DeviceBatteryInfo;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { socket } from './services/socket';
 import { useCards } from './hooks/useCards';
 import { DeviceCard } from './components/DeviceCard';
@@ -6,6 +6,7 @@ import { AddCardModal } from './components/AddCardModal';
 import { EditCardModal } from './components/EditCardModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { PairingModal } from './components/PairingModal';
+import { ApkDownloadModal } from './components/ApkDownloadModal';
 import { SearchBar } from './components/SearchBar';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { Receiver } from './pages/Receiver';
@@ -19,21 +20,25 @@ export function App() {
 
   // Modais
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isApkModalOpen, setIsApkModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<CardWithStatus | null>(null);
   const [deletingCard, setDeletingCard] = useState<CardWithStatus | null>(null);
   const [pairingCard, setPairingCard] = useState<CardWithStatus | null>(null);
 
-  // Toasts
+  // Toasts com auto-dismiss garantido
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = (type: 'success' | 'error' | 'info', message: string) => {
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addToast = useCallback((type: 'success' | 'error' | 'info', message: string, durationMs = 4000) => {
     const id = Math.random().toString(36).slice(2, 9);
     setToasts((prev) => [...prev, { id, type, message }]);
-  };
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, durationMs);
+  }, []);
 
   // Gerenciamento de Cards
   const { cards, loading, error, refresh, addCard, updateCard, deleteCard, setCardLocating } = useCards();
@@ -59,7 +64,7 @@ export function App() {
     socket.on('disconnect', onDisconnect);
     socket.on(SOCKET_EVENTS.LOCATE_FEEDBACK, onLocateFeedback);
 
-    // Buscar informações de rede
+    // Buscar informações de rede e status do APK
     fetch('/api/network-info')
       .then((res) => res.json())
       .then((data: SystemInfoResponse) => setSystemInfo(data))
@@ -71,7 +76,7 @@ export function App() {
       socket.off('disconnect', onDisconnect);
       socket.off(SOCKET_EVENTS.LOCATE_FEEDBACK, onLocateFeedback);
     };
-  }, [setCardLocating]);
+  }, [setCardLocating, addToast]);
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
@@ -143,6 +148,16 @@ export function App() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            id="btn-header-apk-qr"
+            className="btn btn-secondary"
+            onClick={() => setIsApkModalOpen(true)}
+            style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+            title="Escanear QR Code para baixar o app Android sem cabo"
+          >
+            <span>📱</span> Baixar App (QR Code)
+          </button>
+
           <div className="lan-badge" title="Operação 100% em rede Wi-Fi local sem nuvem">
             <span className="pulse-dot"></span>
             Rede Local Wi-Fi
@@ -177,27 +192,37 @@ export function App() {
 
       {/* Banner de Diagnóstico de Rede Local */}
       <section className="info-banner" id="lan-diagnostics-banner" aria-label="Informações de Rede Local">
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
             Acesso para Celulares na mesma rede Wi-Fi
           </h2>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-            Abra o navegador do celular e acesse o receptor pelo IPv4 local:
+            Abra o navegador do celular no receptor ou escaneie o QR Code para baixar o app:
           </p>
         </div>
 
-        <div className="ip-list">
-          {systemInfo?.interfaces && systemInfo.interfaces.length > 0 ? (
-            systemInfo.interfaces.map((iface) => (
-              <span key={iface.ip} className="ip-badge" title={`Interface: ${iface.name}`}>
-                {iface.receiverUrl}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <div className="ip-list">
+            {systemInfo?.interfaces && systemInfo.interfaces.length > 0 ? (
+              systemInfo.interfaces.map((iface) => (
+                <span key={iface.ip} className="ip-badge" title={`Interface: ${iface.name}`}>
+                  {iface.receiverUrl}
+                </span>
+              ))
+            ) : (
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Carregando interfaces de rede...
               </span>
-            ))
-          ) : (
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Carregando interfaces de rede...
-            </span>
-          )}
+            )}
+          </div>
+
+          <button
+            className="btn btn-secondary"
+            onClick={() => setIsApkModalOpen(true)}
+            style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <span>📲</span> QR Code do APK
+          </button>
         </div>
       </section>
 
@@ -206,7 +231,7 @@ export function App() {
         <Receiver />
       ) : (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Barra de Ações do Dashboard (div:nth-child(1)) */}
+          {/* Barra de Ações do Dashboard */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h2 style={{ fontSize: '1.35rem' }}>Celulares Cadastrados</h2>
@@ -216,16 +241,28 @@ export function App() {
               </p>
             </div>
 
-            <button
-              id="btn-add-device"
-              className="btn btn-primary"
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              + Adicionar celular
-            </button>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button
+                id="btn-install-apk-qr"
+                className="btn btn-secondary"
+                onClick={() => setIsApkModalOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                title="Escanear QR Code para baixar o app Android sem cabo"
+              >
+                <span>📲</span> Instalar App via QR Code
+              </button>
+
+              <button
+                id="btn-add-device"
+                className="btn btn-primary"
+                onClick={() => setIsAddModalOpen(true)}
+              >
+                + Adicionar celular
+              </button>
+            </div>
           </div>
 
-          {/* Barra de Pesquisa com Filtragem Instantânea (entre div:nth-child(1) e #devices-cards-grid) */}
+          {/* Barra de Pesquisa com Filtragem Instantânea */}
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
@@ -392,10 +429,17 @@ export function App() {
         isOpen={!!pairingCard}
         onClose={() => setPairingCard(null)}
         systemInfo={systemInfo}
+        onOpenApkModal={() => setIsApkModalOpen(true)}
         onUnpairSuccess={() => {
           refresh();
           addToast('info', 'Aparelho desvinculado com sucesso.');
         }}
+      />
+
+      <ApkDownloadModal
+        isOpen={isApkModalOpen}
+        onClose={() => setIsApkModalOpen(false)}
+        systemInfo={systemInfo}
       />
 
       {/* Container de Notificações Toast */}

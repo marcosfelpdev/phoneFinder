@@ -6,6 +6,19 @@ export interface LanInterfaceInfo {
   ip: string;
   receiverUrl: string;
   dashboardUrl: string;
+  apkDownloadUrl: string;
+}
+
+/**
+ * Informações do arquivo APK disponível para download local.
+ */
+export interface ApkFileInfo {
+  available: boolean;
+  fileName: string;
+  fileSizeBytes: number;
+  fileSizeMb: string;
+  downloadUrl: string;
+  lastModified?: string;
 }
 
 /**
@@ -16,4 +29,5 @@ export interface SystemInfoResponse {
   port: number;
   uptimeSeconds: number;
   interfaces: LanInterfaceInfo[];
+  apkInfo?: ApkFileInfo;
 }

@@ -111,7 +111,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 7. Desconexão
+  // 7. Telemetria de nível de bateria do celular (ciclo de 10 minutos ou na conexão)
+  socket.on(SOCKET_EVENTS.DEVICE_BATTERY, async (payload) => {
+    if (payload?.deviceId && typeof payload.level === 'number') {
+      await presenceService.setDeviceBattery(payload.deviceId, {
+        level: payload.level,
+        isCharging: payload.isCharging,
+      });
+    }
+  });
+
+  // 8. Desconexão
   socket.on('disconnect', async (reason) => {
     logger.info('Socket', `Cliente desconectado: ${socket.id} (Motivo: ${reason})`);
     await presenceService.handleSocketDisconnect(socket.id);
