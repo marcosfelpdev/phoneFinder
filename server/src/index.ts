@@ -41,8 +41,8 @@ export const io = new Server<ClientToServerEvents, ServerToClientEvents>(server,
     origin: '*',
     methods: ['GET', 'POST'],
   },
-  pingTimeout: 10000,
-  pingInterval: 5000,
+  pingTimeout: 30000,
+  pingInterval: 25000,
 });
 
 // Injetar io no serviço de presença para broadcasts

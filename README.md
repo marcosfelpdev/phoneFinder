@@ -138,11 +138,13 @@ O módulo Android nativo está localizado em `apps/android/` e foi estruturado p
    - **Visual**: Fundo vermelho sem texto ou interferência visual.
    - **Sonoro**: Toque de alarme configurado em `STREAM_ALARM`, garantindo toque mesmo em modo silencioso ou não perturbe.
    - **Vibração**: Vibração pulsada durante o período de 5 segundos.
-4. **Como Gerar e Instalar o APK** (guia completo em [`build-apk.md`](.agents/skills/phone-finder-android-native/references/build-apk.md)):
-   - Instale o **Android Studio** e o **Android SDK Platform 35**.
-   - `File > Open` na pasta `apps/android` e aguarde o Gradle Sync.
-   - `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
+4. **Instalação Facilitada em Série via USB**:
+   - Para instalar rapidamente em múltiplos celulares sem digitar comandos:
+   - Dê um duplo-clique no arquivo [`instalar-celulares.bat`](file:///c:/Users/mfana/projetos/phoneFinder/instalar-celulares.bat) na raiz do projeto.
+   - O instalador detecta automaticamente o ADB, identifica cada celular conectado no USB, instala o APK, concede todas as permissões especiais (bateria, sobreposição, alarme e notificações) e abre o aplicativo na tela.
+   - Basta desconectar o aparelho, plugar o próximo celular e pressionar `[Enter]`.
+
+5. **Como Gerar o APK Manualmente** (guia completo em [`build-apk.md`](.agents/skills/phone-finder-android-native/references/build-apk.md)):
+   - Abra a pasta `apps/android` no Android Studio ou execute `gradlew assembleDebug`.
    - O arquivo gerado fica em `apps/android/app/build/outputs/apk/debug/app-debug.apk`.
-   - Instale no celular (`adb install -r app-debug.apk` ou copiando o arquivo).
-   - No app, informe `http://<IPv4-do-PC>:3001`, conceda notificações, desative a restrição de bateria e pareie com o código do dashboard.
 

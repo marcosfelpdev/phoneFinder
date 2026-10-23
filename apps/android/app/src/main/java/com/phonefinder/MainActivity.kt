@@ -225,6 +225,9 @@ class MainActivity : AppCompatActivity() {
             preferences.deviceId = deviceId
             preferences.cardName = cardName
             updateStateUI()
+            if (preferences.isForegroundServiceEnabled) {
+                PhoneFinderForegroundService.identifyDevice(deviceId)
+            }
         } else {
             binding.txtPairingError.text = error ?: "Código inválido ou expirado."
             binding.txtPairingError.visibility = View.VISIBLE
@@ -312,20 +315,42 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateAlertPermissionStatus()
+        val connected = if (preferences.isForegroundServiceEnabled) {
+            PhoneFinderForegroundService.isConnected
+        } else {
+            localSocketManager?.isConnected == true
+        }
+        updateConnectionUI(connected)
     }
 
     private fun updateAlertPermissionStatus() {
         val overlayOk = AlertPermissions.canDrawOverlays(this)
         val fsiOk = AlertPermissions.canUseFullScreenIntent(this)
 
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val batteryIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            powerManager.isIgnoringBatteryOptimizations(packageName)
+        } else {
+            true
+        }
+
         val lines = mutableListOf(
             (if (overlayOk) "✓" else "✗") + " Sobrepor a outros apps (vermelho com a tela ligada)",
-            (if (fsiOk) "✓" else "✗") + " Notificações em tela cheia (vermelho na tela de bloqueio)"
+            (if (fsiOk) "✓" else "✗") + " Notificações em tela cheia (vermelho na tela de bloqueio)",
+            (if (batteryIgnored) "✓" else "⚠️") + (if (batteryIgnored) " Bateria sem restrições (conexão persistente liberada)" else " Bateria com restrições (pode desconectar em repouso)")
         )
         if (AlertPermissions.isXiaomiFamily) {
-            lines += "• Xiaomi/HyperOS: libere também \"Exibir janelas pop-up em 2º plano\" e \"Mostrar na tela de bloqueio\""
+            lines += "• Xiaomi/HyperOS: configure Economia de Bateria para \"Nenhuma restrição\""
         }
         binding.txtAlertPermissionStatus.text = lines.joinToString("\n")
+
+        if (batteryIgnored) {
+            binding.btnBatteryOptimization.text = "✓ Bateria Liberada em 2º Plano"
+            binding.btnBatteryOptimization.isEnabled = false
+        } else {
+            binding.btnBatteryOptimization.text = "⚠️ Liberar Bateria para Manter Conectado"
+            binding.btnBatteryOptimization.isEnabled = true
+        }
     }
 
     /**

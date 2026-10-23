@@ -38,6 +38,22 @@ export function Receiver() {
     }
   }, []);
 
+  // Garantir Wake Lock ativo quando pareado e renovar ao voltar para a aba
+  useEffect(() => {
+    if (deviceId) {
+      requestWakeLock();
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && deviceId) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [deviceId, requestWakeLock]);
+
   useEffect(() => {
     // Monitorar conexão de socket
     const onConnect = () => {

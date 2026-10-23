@@ -23,6 +23,14 @@ import com.phonefinder.data.SocketManager
 import com.phonefinder.ui.LocateAlertActivity
 import com.phonefinder.util.AlertPermissions
 import com.phonefinder.util.LocateAlertController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class PhoneFinderForegroundService : Service() {
 
@@ -34,6 +42,9 @@ class PhoneFinderForegroundService : Service() {
     private var wifiLock: WifiManager.WifiLock? = null
     private val processedCommands = HashSet<String>()
 
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var watchdogJob: Job? = null
+
     override fun onCreate() {
         super.onCreate()
         preferences = DevicePreferences(this)
@@ -44,6 +55,7 @@ class PhoneFinderForegroundService : Service() {
         createNotificationChannels()
         acquireLocks()
         setupSocketListeners()
+        startWatchdog()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -247,14 +259,39 @@ class PhoneFinderForegroundService : Service() {
             }
 
             val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wifiLockMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
             wifiLock = wifiManager.createWifiLock(
-                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                wifiLockMode,
                 "PhoneFinder::WifiLock"
             ).apply {
+                setReferenceCounted(false)
                 acquire()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao alocar WakeLock/WifiLock", e)
+        }
+    }
+
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = serviceScope.launch {
+            while (isActive) {
+                delay(20_000L) // Checagem preventiva a cada 20 segundos
+                try {
+                    val deviceId = preferences.deviceId
+                    if (deviceId != null && !socketManager.isConnected) {
+                        Log.w(TAG, "Watchdog: aparelho pareado desconectado. Reconectando ao servidor...")
+                        socketManager.connect(preferences.serverUrl)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro no Watchdog de reconexão", e)
+                }
+            }
         }
     }
 
@@ -310,6 +347,7 @@ class PhoneFinderForegroundService : Service() {
     }
 
     private fun stopForegroundService() {
+        watchdogJob?.cancel()
         socketManager.disconnect()
         releaseLocks()
         stopForeground(STOP_FOREGROUND_REMOVE)
