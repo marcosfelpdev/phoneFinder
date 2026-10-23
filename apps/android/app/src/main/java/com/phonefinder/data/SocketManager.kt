@@ -3,6 +3,13 @@ package com.phonefinder.data
 import android.util.Log
 import io.socket.client.IO
 import io.socket.client.Socket
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.net.URI
@@ -11,8 +18,11 @@ import java.util.concurrent.TimeUnit
 class SocketManager(private val preferences: DevicePreferences) {
 
     private var socket: Socket? = null
+    private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var reconnectJob: Job? = null
+
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .pingInterval(15, TimeUnit.SECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
@@ -45,6 +55,7 @@ class SocketManager(private val preferences: DevicePreferences) {
             socket = IO.socket(uri, options).apply {
                 on(Socket.EVENT_CONNECT) {
                     Log.i(TAG, "Socket conectado com sucesso (ID: ${id()})")
+                    cancelReconnect()
                     onConnectionChanged?.invoke(true)
                     // Se já tiver deviceId salvo, identifica-se na reconexão
                     preferences.deviceId?.let { id ->
@@ -57,12 +68,18 @@ class SocketManager(private val preferences: DevicePreferences) {
                     val reason = if (args.isNotEmpty()) args[0].toString() else "unknown"
                     Log.w(TAG, "Socket desconectado. Motivo: $reason")
                     onConnectionChanged?.invoke(false)
+                    if (preferences.deviceId != null) {
+                        scheduleReconnect()
+                    }
                 }
 
                 on(Socket.EVENT_CONNECT_ERROR) { args ->
                     val err = if (args.isNotEmpty()) args[0].toString() else "unknown"
                     Log.w(TAG, "Erro de conexão no Socket: $err")
                     onConnectionChanged?.invoke(false)
+                    if (preferences.deviceId != null) {
+                        scheduleReconnect()
+                    }
                 }
 
                 on("pairing:result") { args ->
@@ -123,9 +140,50 @@ class SocketManager(private val preferences: DevicePreferences) {
     }
 
     fun disconnect() {
+        cancelReconnect()
         socket?.disconnect()
         socket?.off()
         socket = null
+    }
+
+    fun ensureConnected() {
+        if (isConnected) {
+            Log.d(TAG, "ensureConnected: socket já está conectado.")
+            return
+        }
+
+        if (socket != null) {
+            Log.d(TAG, "ensureConnected: socket desconectado. Chamando socket.connect()...")
+            socket?.connect()
+        } else {
+            Log.d(TAG, "ensureConnected: socket nulo. Inicializando nova conexão...")
+            connect(preferences.serverUrl)
+        }
+    }
+
+    fun scheduleReconnect() {
+        if (reconnectJob?.isActive == true || isConnected) return
+
+        reconnectJob = managerScope.launch {
+            var attempt = 1
+            while (!isConnected && preferences.deviceId != null && isActive) {
+                val delayTime = (attempt * 2000L).coerceAtMost(20000L)
+                Log.d(TAG, "Reconexão proativa #$attempt agendada para daqui a ${delayTime}ms...")
+                delay(delayTime)
+                if (isConnected) break
+                try {
+                    ensureConnected()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Falha na tentativa de reconexão proativa #$attempt", e)
+                }
+                attempt++
+            }
+        }
+    }
+
+    private fun cancelReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
     }
 
     val isConnected: Boolean

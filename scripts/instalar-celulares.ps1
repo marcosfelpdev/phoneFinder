@@ -235,6 +235,14 @@ while ($true) {
             Write-Host "    [OK] Notificacoes: Permissao POST_NOTIFICATIONS concedida" -ForegroundColor Green
         } catch {}
 
+        # 5. Execucao continua e autoinicio em 2º plano (Xiaomi / HyperOS / Samsung)
+        try {
+            & $adb -s $serial shell appops set com.phonefinder AUTO_START allow 2>&1 | Out-Null
+            & $adb -s $serial shell appops set com.phonefinder RUN_IN_BACKGROUND allow 2>&1 | Out-Null
+            & $adb -s $serial shell appops set com.phonefinder SCHEDULE_EXACT_ALARM allow 2>&1 | Out-Null
+            Write-Host "    [OK] Sistema: Execucao continua e alarmes liberados" -ForegroundColor Green
+        } catch {}
+
         # 5. Iniciar o app na tela do aparelho
         Write-Host "[*] Abrindo Phone Finder na tela do celular..." -ForegroundColor Cyan
         try {

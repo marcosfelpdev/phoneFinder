@@ -1,6 +1,7 @@
 package com.phonefinder.service
 
 import android.annotation.SuppressLint
+import android.app.AlarmManager
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -10,10 +11,15 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.phonefinder.MainActivity
@@ -44,6 +50,8 @@ class PhoneFinderForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var watchdogJob: Job? = null
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +63,8 @@ class PhoneFinderForegroundService : Service() {
         createNotificationChannels()
         acquireLocks()
         setupSocketListeners()
+        registerNetworkCallback()
+        scheduleKeepAliveAlarm()
         startWatchdog()
     }
 
@@ -346,7 +356,118 @@ class PhoneFinderForegroundService : Service() {
         }
     }
 
+    fun reconnectSocket() {
+        socketManager.ensureConnected()
+    }
+
+    fun scheduleKeepAliveAlarm() {
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(this, KeepAliveReceiver::class.java).apply {
+                action = KeepAliveReceiver.ACTION_KEEP_ALIVE
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                KEEP_ALIVE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val triggerAt = SystemClock.elapsedRealtime() + KEEP_ALIVE_INTERVAL_MS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            }
+            Log.d(TAG, "KeepAlive Alarm agendado com sucesso para daqui a ${KEEP_ALIVE_INTERVAL_MS / 1000}s")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao agendar KeepAlive Alarm", e)
+        }
+    }
+
+    private fun cancelKeepAliveAlarm() {
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(this, KeepAliveReceiver::class.java).apply {
+                action = KeepAliveReceiver.ACTION_KEEP_ALIVE
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                this,
+                KEEP_ALIVE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+            Log.d(TAG, "KeepAlive Alarm cancelado.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao cancelar KeepAlive Alarm", e)
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        try {
+            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    Log.i(TAG, "Wi-Fi detectado/restabelecido. Verificando conexão socket...")
+                    if (preferences.deviceId != null && !socketManager.isConnected) {
+                        Log.i(TAG, "Reconectando socket proativamente após detecção de Wi-Fi...")
+                        socketManager.ensureConnected()
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    Log.w(TAG, "Rede Wi-Fi perdida.")
+                    updateServiceNotification("● Wi-Fi desconectado")
+                }
+            }
+            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
+            Log.d(TAG, "NetworkCallback de Wi-Fi registrado com sucesso.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao registrar NetworkCallback", e)
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao desregistrar NetworkCallback", e)
+        } finally {
+            networkCallback = null
+            connectivityManager = null
+        }
+    }
+
     private fun stopForegroundService() {
+        cancelKeepAliveAlarm()
+        unregisterNetworkCallback()
         watchdogJob?.cancel()
         socketManager.disconnect()
         releaseLocks()
@@ -421,11 +542,16 @@ class PhoneFinderForegroundService : Service() {
             context.startService(intent)
         }
 
+        const val KEEP_ALIVE_REQUEST_CODE = 2001
+        const val KEEP_ALIVE_INTERVAL_MS = 120_000L // 2 minutos
+
         fun reconnect(context: Context) {
-            val intent = Intent(context, PhoneFinderForegroundService::class.java).apply {
-                action = ACTION_RECONNECT
+            val s = instance
+            if (s != null) {
+                s.reconnectSocket()
+            } else {
+                start(context)
             }
-            context.startService(intent)
         }
     }
 }
